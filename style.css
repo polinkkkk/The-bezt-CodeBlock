@@ -1,0 +1,92 @@
+body 
+{
+    margin: 0;
+    font-family: Arial, sans-serif;
+    background-color: #e6f3ec;
+}
+
+header 
+{
+    background-color: #76B8CE;
+    color: rgb(0, 0, 0);
+    padding: 15px;
+    text-align: center;
+}
+
+.layout
+{
+    display: flex;
+    height: calc(100vh - 60px);
+}
+
+.left-blocks-panel 
+{
+    width: 250px;
+    background-color: #E5F7ED;
+    padding: 15px;
+    border-right: 2px solid #8facc4;
+    border-bottom: 2px solid #8facc4;
+}
+
+.left-blocks-panel h2,
+.workspace h2
+{
+    margin-top: 0;
+}
+
+.declare-block
+{
+    background-color:#76B8CE;
+    padding: 10px;
+    margin-bottom: 10px;
+    border-radius: 6px;
+    text-align: center;
+    cursor: pointer;
+    transition: 0.2s;
+}
+
+.declare-block:hover
+{
+    background-color: #e158aa;
+    transform: scale(1.05);
+}
+
+.assign-block
+{
+    background-color:#76B8CE;
+    padding: 10px;
+    margin-bottom: 10px;
+    border-radius: 6px;
+    text-align: center;
+    cursor: pointer;
+    transition: 0.2s;
+}
+
+.assign-block:hover
+{
+    background-color: #e158aa;
+    transform: scale(1.05);
+}
+
+.if-block
+{
+    background-color:#76B8CE;
+    padding: 10px;
+    margin-bottom: 10px;
+    border-radius: 6px;
+    text-align: center;
+    cursor: pointer;
+    transition: 0.2s;
+}
+
+.if-block:hover
+{
+    background-color: #e158aa;
+    transform: scale(1.05);
+}
+
+.workspace 
+{
+    flex-grow: 1;
+    padding: 20px;
+}

@@ -1,8 +1,10 @@
 body 
 {
     margin: 0;
-    font-family: Arial, sans-serif;
+    font-family: 'Courier New', monospace;
     background-color: #e6f3ec;
+    text-transform: uppercase;
+    font-weight: bold;
 }
 
 header 
@@ -43,6 +45,7 @@ header
     text-align: center;
     cursor: pointer;
     transition: 0.2s;
+    box-shadow: 2px 2.5px #629eb2;
 }
 
 .declare-block:hover
@@ -60,6 +63,7 @@ header
     text-align: center;
     cursor: pointer;
     transition: 0.2s;
+    box-shadow: 2px 2.5px #629eb2;
 }
 
 .assign-block:hover
@@ -77,6 +81,7 @@ header
     text-align: center;
     cursor: pointer;
     transition: 0.2s;
+    box-shadow: 2px 2.5px #629eb2;
 }
 
 .if-block:hover

@@ -10,17 +10,20 @@
         <h1>Drag and drop</h1>
     </header>
     <div class="layout">
-        <aside class="left-blocks-panel">
-            <h2>Blocks</h2>
+        <div class="left-blocks-panel">
+            <h3>Blocks</h3>
+            <div class = "blocks-container" id = "BlocksContainer">
+                <div class="block declare">Initialisation</div>
+                <div class="block assign">Assign a variable</div>
+                <div class="block if">If</div>
+            </div>
 
-            <div class="declare-block" draggable ="true">Initialisation</div>
-            <div class="assign-block" draggable = "true">Assign a variable</div>
-            <div class="if-block" draggable = "true">If</div>
-
-        </aside>
-        <main class="workspace" id="workspace">
-            <p class="help">Drag here</p>
-        </main>
+        </div>
+        <div class = "dotted" id = "WorkspaceArea">
+            <p class = "unselectable">Drag here</p>
+        </div>
     </div>
+
+    <script src = "script.js"></script>
 </body>
 </html>

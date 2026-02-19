@@ -2,45 +2,44 @@
 <html lang="ru"> 
 <head>
     <meta charset = "UTF-8">
-    <title>Drag and drop</title>
+    <title>🚀 bezt-CodeBlock</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <header>
-        <h1>Drag and drop</h1>
+        <h1>🚀 bezt-CodeBlock</h1>
     </header>
     <div class="layout">
         <div class="left-blocks-panel">
-            <h3>Blocks</h3>
+            <h3>Блоки</h3>
             <div class = "blocks-container" id = "BlocksContainer">
-                <div class="block declare">Объявление переменной
-                    <div class = "window"> 
-                        <form>
-                            <input style = "width:100px; height: 20px" type = "text"/>
-                            <input style="width: 20px; height: 20px" type = "text"/>
-                            <h5>Имя переменной</h5>
-                            <h5>Значение</h5>
-                        </form>
+                <div class="block" data-type="declare">
+                    <div>Объявить</div>
+                    <div class="window">
+                        <input class="var-name" value="" placeholder="имя">
+                        <input class="var-value" value="" type="number" placeholder="Значение">
                     </div>
                 </div>
-                <div class="block assign">Присвоить значение
-                    <div class = "window"> 
-                        <form>
-                            <input style = "width:100px; height: 20px" type = "text"/>
-                            <input style="width: 20px; height: 20px" type = "text"/>
-                            <h5>Имя переменной</h5>
-                            <h5>Значение</h5>
-                        </form>
+                <div class="block" data-type="set">
+                    <div>Установить</div>
+                    <div class="window">
+                        <input class="var-name" value="" placeholder="имя">
+                        <input class="var-value" value="" type="number" placeholder="Значение">
                     </div>
                 </div>
-                <div class="block if">Если</div>
+                <div class="block" data-type="print" style="height: 70px;">
+                    <div>Вывести</div>
+                    <input class="var-name" value="" style="margin-top: 8px;" placeholder="имя">
+                </div>
             </div>
-
-        </div>
+        </div> 
         <div class = "dotted" id = "WorkspaceArea">
-            <p class = "unselectable">Drag here</p>
-        </div>
+            <div class="unselectable">Перетащи сюда блоки</div>
+        </div> 
     </div>
+
+    <button id="runButton">▶  Запустить</button>
+    <div id="output">Готов к выполнению кода!</div>
 
     <script src = "script.js"></script>
 </body>

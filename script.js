@@ -32,6 +32,7 @@ class DragAndDropManager
         {
             block.dataset.parent = "";
             block.dataset.child = "";
+            
             block.addEventListener('mousedown', this.OnMouseDown.bind(this));
         });
     }
@@ -41,8 +42,11 @@ class DragAndDropManager
         const block = event.target.closest('.block');
         if (!block) 
             return;
+        const isInput = event.target.matches('input, select, button');
+        if (isInput) return;
 
         event.preventDefault();
+        event.stopPropagation();
 
         this.IsDragging = true;
         this.OriginalElement = block;
@@ -55,18 +59,17 @@ class DragAndDropManager
         if (block.parentNode === this.BlocksContainer)
         {
             this.DraggingNowElement = block.cloneNode(true);
-            this.DraggingNowElement.id = "block-" + Date.now();
-            this.DraggingNowElement.style.position = 'fixed';
-
-            this.DraggingNowElement.style.width = rectangle.width + 'px';
-            this.DraggingNowElement.style.height = rectangle.height + 'px';
-            this.DraggingNowElement.style.left = rectangle.left + 'px';
-            this.DraggingNowElement.style.top = rectangle.top + 'px';
-
-            this.DraggingNowElement.dataset.parent = "";
-            this.DraggingNowElement.dataset.child = "";
-
-            this.DraggingNowElement.style.pointerEvents = 'none';
+                    this.DraggingNowElement.id = "block-" + Date.now();
+                    this.DraggingNowElement.dataset.type = block.dataset.type; 
+                    this.DraggingNowElement.style.position = 'fixed';
+                    this.DraggingNowElement.style.width = rectangle.width + 'px';
+                    this.DraggingNowElement.style.height = rectangle.height + 'px';
+                    this.DraggingNowElement.style.left = rectangle.left + 'px';
+                    this.DraggingNowElement.style.top = rectangle.top + 'px';
+                    this.DraggingNowElement.dataset.parent = "";
+                    this.DraggingNowElement.dataset.child = "";
+                    this.DraggingNowElement.style.pointerEvents = 'none';
+                    this.DraggingNowElement.dataset.listenerAdded = "false";
             document.body.appendChild(this.DraggingNowElement);
             this.DraggingNowElement.addEventListener
             (
@@ -243,19 +246,15 @@ class DragAndDropManager
             (event.clientY - workspace_rectangle.top - this.OffsetY) + 'px';
 
         this.DraggingNowElement.classList.remove('dragging');
-
         this.CheckHint();
     }
 
-    CheckHint() 
-    {
-        const hint = this.WorkspaceArea.querySelector('p');
-        const blocks = this.WorkspaceArea.querySelectorAll('.block');
-
-        if (!hint) return;
-
-        hint.style.display = blocks.length === 0 ? 'block' : 'none';
-    }
+    CheckHint() {
+                const hint = this.WorkspaceArea.querySelector('.unselectable');
+                if (hint) {
+                    hint.style.display = this.WorkspaceArea.querySelectorAll('.block').length === 0 ? 'block' : 'none';
+                }
+            }
 
     CleanUp() 
     {
@@ -274,4 +273,80 @@ class DragAndDropManager
 document.addEventListener('DOMContentLoaded', () => 
 {
     new DragAndDropManager();
+    document.getElementById('runButton').onclick = () => new BlockInterpreter().run();
 });
+
+class BlockInterpreter {
+            constructor() {
+                this.variables = {};
+                this.output = [];
+            }
+
+            run() {
+                const root = this.findRoot();
+                if (!root) {
+                    document.getElementById('output').innerHTML = '❌ Добавь блоки в рабочую область!';
+                    return;
+                }
+
+                this.variables = {};
+                this.output = [];
+                
+                let current = root;
+                while (current) {
+                    this.execute(current);
+                    current = this.getNext(current);
+                }
+                
+                const output = document.getElementById('output');
+                output.innerHTML = `
+                     <strong>Выполнено успешно!</strong><br><br>
+                    📤 <strong>Вывод:</strong><br>
+                    ${this.output.length ? this.output.map(v => `<code>${v}</code>`).join(' → ') : 'нет вывода'}
+                `;
+            }
+
+            findRoot() {
+                const blocks = document.querySelectorAll('#WorkspaceArea .block');
+                return Array.from(blocks).find(block => !block.dataset.parent);
+            }
+
+            getNext(block) {
+                const childId = block.dataset.child;
+                return childId ? document.getElementById(childId) : null;
+            }
+
+            execute(block) {
+                const type = block.dataset.type;
+                const nameInput = block.querySelector('.var-name');
+                const valueInput = block.querySelector('.var-value');
+                const name = nameInput ? nameInput.value.trim() : '';
+
+                switch(type) {
+                    case 'declare':
+                        if (name) {
+                            const value = valueInput ? parseFloat(valueInput.value) || 0 : 0;
+                            this.variables[name] = value;
+                            console.log(`📥 Объявлена ${name} = ${value}`);
+                        }
+                        break;
+                        
+                    case 'set':
+                        if (name) {
+                            const value = valueInput ? parseFloat(valueInput.value) || 0 : 0;
+                            this.variables[name] = value;
+                            console.log(`🔄 Установлено ${name} = ${value}`);
+                        }
+                        break;
+                        
+                    case 'print':
+                        if (name) {
+                            const value = this.variables[name];
+                            this.output.push(value !== undefined ? value : 'undefined');
+                            console.log(`📤 Вывод: ${name} = ${value}`);
+                        }
+                        break;
+                }
+            }
+        }
+

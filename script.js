@@ -55,6 +55,7 @@ class DragAndDropManager
         if (block.parentNode === this.BlocksContainer)
         {
             this.DraggingNowElement = block.cloneNode(true);
+            this.DraggingNowElement.id = "block-" + Date.now();
             this.DraggingNowElement.style.position = 'fixed';
 
             this.DraggingNowElement.style.width = rectangle.width + 'px';
@@ -129,7 +130,9 @@ class DragAndDropManager
     OnMouseUp(event) 
     {
         if (!this.IsDragging) 
+        {
             return;
+        }   
 
         const workspace_rectangle = this.WorkspaceArea.getBoundingClientRect();
 
@@ -142,18 +145,17 @@ class DragAndDropManager
         if (inside_workspace) 
         {
             this.DropInsideWorkspace(event);
+            this.TrySnap(this.DraggingNowElement);
         } 
         else 
         {
-            if (this.OriginalElement.parentNode === this.BlocksContainer) 
+            if (this.DraggingNowElement)
             {
                 this.DraggingNowElement.remove();
             }
         }
 
-        if (this.DraggingNowElement && inside_workspace)
-            this.TrySnap(this.DraggingNowElement);
-
+        this.CheckHint();
         this.CleanUp();
     }
 
@@ -189,20 +191,24 @@ class DragAndDropManager
             const rectangle2 = closest.getBoundingClientRect();
 
             block.style.left = (rectangle2.left - workspace_rectangle.left) + 'px';
-
             block.style.top = (rectangle2.bottom - workspace_rectangle.top) + 'px';
 
-            block.dataset.parent = closest;
-            closest.dataset.child = block;
+            block.dataset.parent = closest.id;
+            closest.dataset.child = block.id;
         }
     }
 
 
     DetachBlock(block) 
     {
-        const parent = block.dataset.parent;
-        if (parent) {
-            parent.dataset.child = "";
+        const parent_id = block.dataset.parent;
+        if (parent_id) {
+            const parent = document.getElementById(parent_id);
+            if (parent)
+            {
+                parent.dataset.child = "";
+            }
+
             block.dataset.parent = "";
         }
     }
@@ -217,6 +223,11 @@ class DragAndDropManager
             this.DraggingNowElement.style.pointerEvents = 'auto';
 
             this.WorkspaceArea.appendChild(this.DraggingNowElement);
+
+            if (!this.DraggingNowElement.id)
+            {
+                this.DraggingNowElement.id = "block-" + Date.now();
+            }
 
             this.DraggingNowElement.addEventListener
             (

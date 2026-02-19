@@ -55,9 +55,7 @@ header
     box-shadow: 0 2px 15px #5a5a5a;
 
 }
-
-.left-blocks-panel:hover 
-{
+.left-blocks-panel:hover {
     transform: translateX(200px);
 }
 
@@ -69,7 +67,7 @@ header
 
 .block
 {
-    background-color:#4a90e2;
+    background-color:#76B8CE;
     padding: 10px;
     margin-bottom: 10px;
     border-radius: 6px;
@@ -82,7 +80,7 @@ header
 
 .block.dragging
 {
-    background-color:#4a90e2;
+    background-color:#76B8CE;
     padding: 10px;
     margin-bottom: 10px;
     border-radius: 6px;
@@ -98,6 +96,38 @@ header
 {
     background-color: #e158aa;
     transform: scale(1.05);
+}
+
+.block {
+    position: relative;
+    background: #4a90e2;
+    padding: 2px 15px;
+    border-radius: 8px;
+    color: white;
+    cursor: grab;
+    margin: 35px;
+}
+
+.block::before {
+    content: "";
+    position: absolute;
+    top: -10px;
+    left: 20px;
+    width: 40px;
+    height: 10px;
+    background: #4a90e2;
+    border-radius: 5px 5px 0 0;
+}
+
+.block::after {
+    content: "";
+    position: absolute;
+    bottom: -10px;
+    left: 20px;
+    width: 40px;
+    height: 10px;
+    background: #4a90e2;
+    border-radius: 0 0 5px 5px;
 }
 
 .cards-container {
@@ -232,4 +262,24 @@ header
   position: relative;
 }
 
+.window form
+{
+    display: grid;
+    grid-template-columns: auto auto;
+    gap: 5px;
+}
+.window form h5 
+{
+    margin: 0;
+}
 
+.window-assign form
+{
+    display: grid;
+    grid-template-columns: auto auto;
+    gap: 5px;
+}
+.window-assign form h5 
+{
+    margin: 0;
+}

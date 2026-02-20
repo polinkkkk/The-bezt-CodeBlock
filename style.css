@@ -257,9 +257,19 @@ header
             margin: 2px;
             font-size: 12px;
         }
+
+.button-container{
+    align-items: center;
+    position: relative;
+    max-width:500px;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+}
 #runButton {
             display: block;
-            margin: 30px auto;
+            width: 100%;
+            margin-top: 10px;
             padding: 15px 30px;
             font-size: 18px;
             background: linear-gradient(145deg, #4CAF50, #45a049);
@@ -269,14 +279,28 @@ header
             cursor: pointer;
             box-shadow: 0 5px 15px rgba(76,175,80,0.4);
         }
-        #runButton:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(76,175,80,0.6); }
-        #output {
+#runButton:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(76,175,80,0.6); }
+#removebutton {
+            display: block;
+            width: 100%;
+            margin: 10px auto;
+            padding: 15px 30px;
+            font-size: 18px;
+            background: linear-gradient(145deg, #4CAF50, #45a049);
+            color: white;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            box-shadow: 0 5px 15px rgba(76,175,80,0.4);
+        }
+        #removebutton:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(76,175,80,0.6); }
+#output {
             margin: 20px auto;
-            max-width: 1200px;
+            width: 200px;
             padding: 20px;
             background: white;
             border-radius: 15px;
             box-shadow: 0 5px 20px rgba(0,0,0,0.1);
-            min-height: 60px;
+            min-height: 600px;
             font-family: monospace;
         }

@@ -270,11 +270,48 @@ class DragAndDropManager
     }
 }
 
-document.addEventListener('DOMContentLoaded', () => 
-{
-    new DragAndDropManager();
-    document.getElementById('runButton').onclick = () => new BlockInterpreter().run();
+document.addEventListener('DOMContentLoaded', () => {
+    window.DragAndDropManager = new DragAndDropManager();
+    new BlockDeleter();
+    new BlockInterpreter();
+    document.getElementById('runButton').onclick = () => {
+        new BlockInterpreter().run();
+    };
 });
+class BlockDeleter {
+    constructor() {
+        this.init();
+    }
+    
+    init() {
+        const removeButton = document.getElementById('removebutton');
+        if (removeButton) {
+            removeButton.onclick = this.clearWorkspace.bind(this);
+        }
+    }
+    
+    clearWorkspace() {
+        const workspace = document.getElementById('WorkspaceArea');
+        const blocks = workspace.querySelectorAll('.block');
+        
+        blocks.forEach(block => {
+            const childId = block.dataset.child;
+            if (childId) {
+                const child = document.getElementById(childId);
+                if (child) child.dataset.parent = "";
+            }
+            
+            block.remove();
+        });
+        
+        const dragManager = window.DragAndDropManager || {}; 
+        if (dragManager.CheckHint) {
+            dragManager.CheckHint();
+        }
+        
+        document.getElementById('output').innerHTML = '🧹 Рабочая область очищена!';
+    }
+}
 
 class BlockInterpreter {
             constructor() {

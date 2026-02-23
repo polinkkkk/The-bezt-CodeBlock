@@ -26,7 +26,7 @@ class DragAndDropManager
 
     MakeBlocksDraggable() 
     {
-        const blocks = document.querySelectorAll('.block');
+        const blocks = document.querySelectorAll('.block, .block-bracket');
 
         blocks.forEach(block => 
         {
@@ -39,7 +39,7 @@ class DragAndDropManager
 
     OnMouseDown(event) 
     {
-        const block = event.target.closest('.block');
+        const block = event.target.closest('.block, .block-bracket');
         if (!block) 
             return;
 
@@ -166,7 +166,7 @@ class DragAndDropManager
 
     TrySnap(block)
     {
-        const blocks = Array.from(this.WorkspaceArea.querySelectorAll('.block')).filter(b => b !== block);
+        const blocks = Array.from(this.WorkspaceArea.querySelectorAll('.block, .block-bracket')).filter(b => b !== block);
 
         const rectangle1 = block.getBoundingClientRect();
         const workspace_rectangle = this.WorkspaceArea.getBoundingClientRect();
@@ -201,6 +201,8 @@ class DragAndDropManager
             block.dataset.parent = closest.id;
             closest.dataset.child = block.id;
         }
+        else
+            block.dataset.parent = "";  
     }
 
 
@@ -251,12 +253,14 @@ class DragAndDropManager
         this.CheckHint();
     }
 
-    CheckHint() {
-                const hint = this.WorkspaceArea.querySelector('.unselectable');
-                if (hint) {
-                    hint.style.display = this.WorkspaceArea.querySelectorAll('.block').length === 0 ? 'block' : 'none';
-                }
-            }
+    CheckHint() 
+    {
+        const hint = this.WorkspaceArea.querySelector('.unselectable');
+        if (hint) 
+        {
+            hint.style.display = this.WorkspaceArea.querySelectorAll('.block, .block-bracket').length === 0 ? 'block' : 'none';
+        }
+    }
 
     CleanUp() 
     {
@@ -300,7 +304,7 @@ class BlockDeleter
     ClearWorkspace() 
     {
         const workspace = document.getElementById('WorkspaceArea');
-        const blocks = workspace.querySelectorAll('.block');
+        const blocks = workspace.querySelectorAll('.block, .block-bracket');
         
         blocks.forEach(block => 
         {
@@ -311,6 +315,7 @@ class BlockDeleter
                 if (child) child.dataset.parent = "";
             }
             
+            block.dataset.child = "";
             block.remove();
         });
         
@@ -330,10 +335,14 @@ class BlockInterpreter
     {
         this.Variables = {};
         this.Output = [];
+        this.ExpressionParts = [];
+        this.LastValue = undefined;
     }
 
     Run() 
     {
+        this.ExpressionParts = [];
+        this.LastValue = undefined;
         const root = this.FindRoot();
         if (!root) 
         {
@@ -351,6 +360,20 @@ class BlockInterpreter
             current = this.GetNext(current);
         }
         
+        if (this.ExpressionParts.length > 0)
+        {
+            const expression = this.ExpressionParts.join(' ');
+            try 
+            {
+                const result = this.EvaluateExpression(expression);
+                this.Output.push(result);
+            } 
+            catch (e)
+            {
+                this.Output.push("Ошибка в выражении!");
+            }
+        }
+
         const output = document.getElementById('output');
         output.innerHTML = `
                 <strong>Выполнено успешно!</strong><br><br>
@@ -361,8 +384,8 @@ class BlockInterpreter
 
     FindRoot() 
     {
-        const blocks = document.querySelectorAll('#WorkspaceArea .block');
-        return Array.from(blocks).find(block => !block.dataset.parent);
+        const blocks = document.querySelectorAll('#WorkspaceArea .block, #WorkspaceArea .block-bracket');
+        return Array.from(blocks).find(block => !block.dataset.parent || block.dataset.parent === "");
     }
 
     GetNext(block) 
@@ -436,7 +459,139 @@ class BlockInterpreter
             case 'remains':
                 this.ExecuteArithmetic(block, type);
                 break;
+
+            case 'single':
+                this.ExpressionParts.push(this.GetTokenFromBlock(block) + ' ');
+                break;
+
+            case 'left-bracket':
+                this.ExpressionParts.push(this.GetTokenFromBlock(block) + ' ');
+                break;
+
+            case 'right-bracket':
+                this.ExpressionParts.push(this.GetTokenFromBlock(block) + ' ');
+                break;
         }
+    }
+
+    GetTokenFromBlock(block)
+    {
+        const type = block.dataset.type;
+
+        if (type === 'plus') return '+';
+        if (type === 'minus') return '-';
+        if (type === 'prod') return '*';
+        if (type === 'division') return '/';
+        if (type === 'remains') return '%';
+
+        if (block.classList.contains('left'))
+            return '(';
+
+        if (block.classList.contains('right'))
+            return ')';
+
+        const input = block.querySelector('input');
+        if (input)
+            return input.value.trim();
+
+        return '';
+    }
+
+    EvaluateExpression(expression)
+    {
+        const priority = 
+        {
+            '+': 1,
+            '-': 1,
+            '*': 2,
+            '/': 2,
+            '%': 2
+        };
+
+        const output = [];
+        const operators = [];
+
+        const tokens = expression.split(/\s+/);
+
+        tokens.forEach(token =>
+        {
+            if (!isNaN(token))
+            {
+                output.push(parseFloat(token));
+            }
+            else if (this.Variables.hasOwnProperty(token))
+            {
+                output.push(this.Variables[token]);
+            }
+            else if (token in priority)
+            {
+                while (operators.length &&
+                    priority[operators[operators.length - 1]] >= priority[token])
+                {
+                    output.push(operators.pop());
+                }
+                operators.push(token);
+            }
+            else if (token === '(')
+            {
+                operators.push(token);
+            }
+            else if (token === ')')
+            {
+                while (operators.length && operators[operators.length - 1] !== '(')
+                {
+                    output.push(operators.pop());
+                }
+                operators.pop();
+            }
+        });
+
+        while (operators.length)
+        {
+            output.push(operators.pop());
+        }
+
+        const stack = [];
+
+        output.forEach(token =>
+        {
+            if (typeof token === 'number')
+            {
+                stack.push(token);
+            }
+            else
+            {
+                const b = stack.pop();
+                const a = stack.pop();
+
+                switch(token)
+                {
+                    case '+': 
+                        stack.push(a + b); 
+                        break;
+
+                    case '-': 
+                        stack.push(a - b);
+                        break;
+
+                    case '*': 
+                        stack.push(a * b);  
+                        break;
+                        
+                    case '/':
+                        if (b === 0) throw Error();
+                        stack.push(a / b);
+                        break;
+
+                    case '%':
+                        if (b === 0) throw Error();
+                        stack.push(a % b);
+                        break;
+                }
+            }
+        });
+
+        return stack[0];
     }
 
     ResolveValue(input)
@@ -485,7 +640,10 @@ class BlockInterpreter
                 break;
         }
 
-        this.LastValue = result;
+        if (typeof result === 'number')
+            this.LastValue = result;
+        else
+            this.LastValue = undefined;
     }
 }
 

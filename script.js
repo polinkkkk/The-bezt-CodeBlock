@@ -9,6 +9,7 @@ class DragAndDropManager
         this.OffsetY = 0;
         this.CurrentX = 0;
         this.CurrentY = 0;
+        
 
         this.SnapDistance = 40;
 
@@ -32,6 +33,8 @@ class DragAndDropManager
         {
             block.dataset.parent = "";
             block.dataset.child = "";
+            block.dataset.left = "";
+            block.dataset.right = "";
             
             block.addEventListener('mousedown', this.OnMouseDown.bind(this));
         });
@@ -165,61 +168,118 @@ class DragAndDropManager
     }
 
     TrySnap(block)
+{
+    const blocks = Array.from(
+        this.WorkspaceArea.querySelectorAll('.block, .block-bracket')
+    ).filter(b => b !== block);
+
+    const rect1 = block.getBoundingClientRect();
+    const workspaceRect = this.WorkspaceArea.getBoundingClientRect();
+
+    let closest = null;
+    let minDist = this.SnapDistance;
+    let snapType = null;
+
+    for (let other of blocks)
     {
-        const blocks = Array.from(this.WorkspaceArea.querySelectorAll('.block, .block-bracket')).filter(b => b !== block);
+        const rect2 = other.getBoundingClientRect();
 
-        const rectangle1 = block.getBoundingClientRect();
-        const workspace_rectangle = this.WorkspaceArea.getBoundingClientRect();
+        const isHorizontal =
+    block.classList.contains('ariphm') ||
+    block.classList.contains('block-bracket');
 
-        let closest = null;
-        let min_dist = this.SnapDistance;
+const otherHorizontal =
+    other.classList.contains('ariphm') ||
+    other.classList.contains('block-bracket');
 
-        for (let other of blocks)
+
+        if (isHorizontal && otherHorizontal)
+        {
+            if (other.dataset.right) continue;
+
+            const horizontal = Math.abs(rect1.left - rect2.right);
+            const vertical = Math.abs(rect1.top - rect2.top);
+
+            if (horizontal < minDist && vertical < 40)
+            {
+                closest = other;
+                minDist = horizontal;
+                snapType = "horizontal";
+            }
+        }
+
+        if (!block.dataset.left && !block.dataset.right)
         {
             if (other.dataset.child) continue;
 
-            const rectangle2 = other.getBoundingClientRect();
+            const vertical = Math.abs(rect1.top - rect2.bottom);
+            const horizontal = Math.abs(rect1.left - rect2.left);
 
-            const vertical = Math.abs(rectangle1.top - rectangle2.bottom);
-
-            const horizontal = Math.abs(rectangle1.left - rectangle2.left);
-
-            if (vertical < min_dist && horizontal < 60)
+            if (vertical < minDist && horizontal < 60)
             {
                 closest = other;
-                min_dist = vertical;
+                minDist = vertical;
+                snapType = "vertical";
             }
         }
-
-        if (closest)
-        {
-            const rectangle2 = closest.getBoundingClientRect();
-
-            block.style.left = (rectangle2.left - workspace_rectangle.left) + 'px';
-            block.style.top = (rectangle2.bottom - workspace_rectangle.top) + 'px';
-
-            block.dataset.parent = closest.id;
-            closest.dataset.child = block.id;
-        }
-        else
-            block.dataset.parent = "";  
     }
 
+    if (!closest) return;
 
-    DetachBlock(block) 
+    const rect2 = closest.getBoundingClientRect();
+
+    if (snapType === "horizontal")
     {
-        const parent_id = block.dataset.parent;
-        if (parent_id) {
-            const parent = document.getElementById(parent_id);
-            if (parent)
-            {
-                parent.dataset.child = "";
-            }
+        block.style.left =
+            (rect2.right - workspaceRect.left) + 'px';
 
-            block.dataset.parent = "";
-        }
+        block.style.top =
+            (rect2.top - workspaceRect.top) + 'px';
+
+        block.dataset.left = closest.id;
+        closest.dataset.right = block.id;
     }
 
+    if (snapType === "vertical")
+    {
+        block.style.left =
+            (rect2.left - workspaceRect.left) + 'px';
+
+        block.style.top =
+            (rect2.bottom - workspaceRect.top) + 'px';
+
+        block.dataset.parent = closest.id;
+        closest.dataset.child = block.id;
+    }
+}
+
+
+DetachBlock(block)
+{
+    const parent_id = block.dataset.parent;
+    if (parent_id)
+    {
+        const parent = document.getElementById(parent_id);
+        if (parent) parent.dataset.child = "";
+        block.dataset.parent = "";
+    }
+
+    const left_id = block.dataset.left;
+    if (left_id)
+    {
+        const left = document.getElementById(left_id);
+        if (left) left.dataset.right = "";
+        block.dataset.left = "";
+    }
+
+    const right_id = block.dataset.right;
+    if (right_id)
+    {
+        const right = document.getElementById(right_id);
+        if (right) right.dataset.left = "";
+        block.dataset.right = "";
+    }
+}
     DropInsideWorkspace(event) 
     {
         const workspace_rectangle = this.WorkspaceArea.getBoundingClientRect();
@@ -388,11 +448,20 @@ class BlockInterpreter
         return Array.from(blocks).find(block => !block.dataset.parent || block.dataset.parent === "");
     }
 
-    GetNext(block) 
+    GetNext(block)
+{
+    if (block.dataset.right)
     {
-        const child_id = block.dataset.child;
-        return child_id ? document.getElementById(child_id) : null;
+        return document.getElementById(block.dataset.right);
     }
+
+    if (block.dataset.child)
+    {
+        return document.getElementById(block.dataset.child);
+    }
+
+    return null;
+}
 
     Execute(block) 
     {

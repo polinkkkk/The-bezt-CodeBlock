@@ -389,40 +389,36 @@ class BlockDeleter
     }
 }
 
-class BlockInterpreter 
-{
-    constructor() 
-    {
+class BlockInterpreter {
+    constructor() {
         this.Variables = {};
         this.Output = [];
-        this.ExpressionParts = [];
-        this.LastValue = undefined;
-        this.SkipNextBlock = false; 
-    }
-
-    Run() 
-    {
-        this.ExpressionParts = [];
         this.LastValue = undefined;
         this.SkipNextBlock = false;
+    }
+
+    Run() {
+        this.LastValue = undefined;
+        this.SkipNextBlock = false;
+        this.Variables = {};
+        this.Output = [];
 
         const root = this.FindRoot();
-        if (!root) 
-        {
+        if (!root) {
             document.getElementById('output').innerHTML = '❌ Добавь блоки в рабочую область!';
             return;
         }
 
-        this.Variables = {};
-        this.Output = [];
-        
         let current = root;
-        while (current) 
-        {
-            if (this.SkipNextBlock)
-            {
+        while (current) {
+            if (this.SkipNextBlock) {
                 this.SkipNextBlock = false;
                 current = this.GetNext(current);
+                continue;
+            }
+
+            if (current.dataset.type === 'while') {
+                current = this.ExecuteWhile(current);
                 continue;
             }
 
@@ -438,59 +434,43 @@ class BlockInterpreter
         `;
     }
 
-    FindRoot() 
-    {
+    FindRoot() {
         const blocks = document.querySelectorAll('#WorkspaceArea .block, #WorkspaceArea .block-bracket');
         return Array.from(blocks).find(block => !block.dataset.parent || block.dataset.parent === "");
     }
 
-    GetNext(block)
-    {
+    GetNext(block) {
         if (block.dataset.right)
             return document.getElementById(block.dataset.right);
-
         if (block.dataset.child)
             return document.getElementById(block.dataset.child);
-
         return null;
     }
 
-    Execute(block) 
-    {
+    Execute(block) {
         const type = block.dataset.type;
         const name_input = block.querySelector('.var-name');
         const value_input = block.querySelector('.var-value');
         const name = name_input ? name_input.value.trim() : '';
 
-        switch(type) 
-        {
+        switch(type) {
             case 'declare':
-                if (name) 
-                {
-                    const value = value_input ? parseFloat(value_input.value) || 0 : 0;
-                    this.Variables[name] = value;
-                }
-                break;
-                
             case 'set':
-                if (name) 
-                {
+                if (name) {
                     const value = value_input ? parseFloat(value_input.value) || 0 : 0;
                     this.Variables[name] = value;
                 }
                 break;
-                
+
             case 'print':
-                if (name) 
-                {
+                if (name) {
                     const value = this.Variables[name];
                     this.Output.push(value !== undefined ? value : 'undefined');
                 }
                 break;
-            
+
             case 'save':
-                if (name && this.LastValue !== undefined)
-                {
+                if (name && this.LastValue !== undefined) {
                     this.Variables[name] = this.LastValue;
                 }
                 break;
@@ -509,8 +489,7 @@ class BlockInterpreter
         }
     }
 
-    ExecuteIf(block)
-    {
+    ExecuteIf(block) {
         const leftInput = block.querySelector('.if-left').value.trim();
         const operator = block.querySelector('.if-operator').value;
         const rightInput = block.querySelector('.if-right').value.trim();
@@ -519,9 +498,7 @@ class BlockInterpreter
         const right = this.ResolveValue(rightInput);
 
         let result = false;
-
-        switch(operator)
-        {
+        switch(operator) {
             case '>': result = left > right; break;
             case '<': result = left < right; break;
             case '==': result = left == right; break;
@@ -530,53 +507,90 @@ class BlockInterpreter
             case '<=': result = left <= right; break;
         }
 
-        if (!result)
-        {
-            this.SkipNextBlock = true;
-        }
+        if (!result) this.SkipNextBlock = true;
     }
 
-    ResolveValue(input)
-    {
+    ResolveValue(input) {
         if (input === '') return 0;
-
-        if (!isNaN(input))
-            return parseFloat(input);
-
-        if (this.Variables.hasOwnProperty(input))
-            return this.Variables[input];
-
+        if (!isNaN(input)) return parseFloat(input);
+        if (this.Variables.hasOwnProperty(input)) return this.Variables[input];
         return 0;
     }
 
-    ExecuteArithmetic(block, type)
-    {
-        const inputs = block.querySelectorAll('input');
+    ExecuteArithmetic(block, type) {
+    const inputs = block.querySelectorAll('input');
+    const leftInput = inputs[0].value.trim();
+    const rightInput = inputs[1].value.trim();
 
-        const left = this.ResolveValue(inputs[0].value.trim());
-        const right = this.ResolveValue(inputs[1].value.trim());
+    const left = this.ResolveValue(leftInput);
+    const right = this.ResolveValue(rightInput);
 
-        let result = 0;
+    let result = 0;
+    switch(type) {
+        case 'plus': result = left + right; break;
+        case 'minus': result = left - right; break;
+        case 'prod': result = left * right; break;
+        case 'division': 
+            if (right === 0) return;
+            result = left / right;
+            break;
+        case 'remains':
+            if (right === 0) return;
+            result = left % right;
+            break;
+    }
 
-        switch(type)
-        {
-            case 'plus': result = left + right; break;
-            case 'minus': result = left - right; break;
-            case 'prod': result = left * right; break;
-            case 'division':
-                if (right === 0) return;
-                result = left / right;
-                break;
-            case 'remains':
-                if (right === 0) return;
-                result = left % right;
-                break;
-        }
+    this.LastValue = result;
 
-        this.LastValue = result;
+    if (leftInput && this.Variables.hasOwnProperty(leftInput)) {
+        this.Variables[leftInput] = result;
     }
 }
 
+    ExecuteWhile(block) {
+        const startBlock = block;
+        const endBlock = this.FindEndWhile(startBlock);
+        if (!endBlock) return this.GetNext(block); 
+
+        while (this.EvaluateWhileCondition(startBlock)) {
+            let current = startBlock.dataset.child ? document.getElementById(startBlock.dataset.child) : this.GetNext(startBlock);
+            while (current && current !== endBlock) {
+                this.Execute(current);
+                current = this.GetNext(current);
+            }
+        }
+
+        return this.GetNext(endBlock); 
+    }
+
+    FindEndWhile(startBlock) {
+        let current = this.GetNext(startBlock);
+        while (current) {
+            if (current.dataset.type === 'endwhile') return current;
+            current = this.GetNext(current);
+        }
+        return null;
+    }
+
+    EvaluateWhileCondition(block) {
+        const leftInput = block.querySelector('.while-left').value.trim();
+        const operator = block.querySelector('.while-operator').value;
+        const rightInput = block.querySelector('.while-right').value.trim();
+
+        const left = this.ResolveValue(leftInput);
+        const right = this.ResolveValue(rightInput);
+
+        switch(operator) {
+            case '>': return left > right;
+            case '<': return left < right;
+            case '==': return left == right;
+            case '!=': return left != right;
+            case '>=': return left >= right;
+            case '<=': return left <= right;
+        }
+        return false;
+    }
+}
 const tabs = document.querySelectorAll(".tab");
 const panels = document.querySelectorAll(".panel");
 

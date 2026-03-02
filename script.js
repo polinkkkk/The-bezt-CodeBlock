@@ -397,12 +397,15 @@ class BlockInterpreter
         this.Output = [];
         this.ExpressionParts = [];
         this.LastValue = undefined;
+        this.SkipNextBlock = false; 
     }
 
     Run() 
     {
         this.ExpressionParts = [];
         this.LastValue = undefined;
+        this.SkipNextBlock = false;
+
         const root = this.FindRoot();
         if (!root) 
         {
@@ -416,27 +419,20 @@ class BlockInterpreter
         let current = root;
         while (current) 
         {
+            if (this.SkipNextBlock)
+            {
+                this.SkipNextBlock = false;
+                current = this.GetNext(current);
+                continue;
+            }
+
             this.Execute(current);
             current = this.GetNext(current);
-        }
-        
-        if (this.ExpressionParts.length > 0)
-        {
-            const expression = this.ExpressionParts.join(' ');
-            try 
-            {
-                const result = this.EvaluateExpression(expression);
-                this.Output.push(result);
-            } 
-            catch (e)
-            {
-                this.Output.push("Ошибка в выражении!");
-            }
         }
 
         const output = document.getElementById('output');
         output.innerHTML = `
-                <strong>Выполнено успешно!</strong><br><br>
+            <strong>Выполнено успешно!</strong><br><br>
             📤 <strong>Вывод:</strong><br>
             ${this.Output.length ? this.Output.map(v => `<code>${v}</code>`).join(' → ') : 'нет вывода'}
         `;
@@ -449,19 +445,15 @@ class BlockInterpreter
     }
 
     GetNext(block)
-{
-    if (block.dataset.right)
     {
-        return document.getElementById(block.dataset.right);
-    }
+        if (block.dataset.right)
+            return document.getElementById(block.dataset.right);
 
-    if (block.dataset.child)
-    {
-        return document.getElementById(block.dataset.child);
-    }
+        if (block.dataset.child)
+            return document.getElementById(block.dataset.child);
 
-    return null;
-}
+        return null;
+    }
 
     Execute(block) 
     {
@@ -477,7 +469,6 @@ class BlockInterpreter
                 {
                     const value = value_input ? parseFloat(value_input.value) || 0 : 0;
                     this.Variables[name] = value;
-                    console.log(`📥 Объявлена ${name} = ${value}`);
                 }
                 break;
                 
@@ -486,7 +477,6 @@ class BlockInterpreter
                 {
                     const value = value_input ? parseFloat(value_input.value) || 0 : 0;
                     this.Variables[name] = value;
-                    console.log(`🔄 Установлено ${name} = ${value}`);
                 }
                 break;
                 
@@ -495,178 +485,60 @@ class BlockInterpreter
                 {
                     const value = this.Variables[name];
                     this.Output.push(value !== undefined ? value : 'undefined');
-                    console.log(`📤 Вывод: ${name} = ${value}`);
                 }
                 break;
             
             case 'save':
-                if (name)
+                if (name && this.LastValue !== undefined)
                 {
-                    if (this.LastValue !== undefined)
-                    {
-                        this.Variables[name] = this.LastValue;
-                    }
+                    this.Variables[name] = this.LastValue;
                 }
+                break;
+
+            case 'if':
+                this.ExecuteIf(block);
                 break;
 
             case 'plus':
-                this.ExecuteArithmetic(block, type);
-                break;
-
             case 'minus':
-                this.ExecuteArithmetic(block, type);
-                break;
-
             case 'prod':
-                this.ExecuteArithmetic(block, type);
-                break;
-
             case 'division':
-                this.ExecuteArithmetic(block, type);
-                break;
-
             case 'remains':
                 this.ExecuteArithmetic(block, type);
                 break;
-
-            case 'single':
-                this.ExpressionParts.push(this.GetTokenFromBlock(block) + ' ');
-                break;
-
-            case 'left-bracket':
-                this.ExpressionParts.push(this.GetTokenFromBlock(block) + ' ');
-                break;
-
-            case 'right-bracket':
-                this.ExpressionParts.push(this.GetTokenFromBlock(block) + ' ');
-                break;
         }
     }
 
-    GetTokenFromBlock(block)
+    ExecuteIf(block)
     {
-        const type = block.dataset.type;
+        const leftInput = block.querySelector('.if-left').value.trim();
+        const operator = block.querySelector('.if-operator').value;
+        const rightInput = block.querySelector('.if-right').value.trim();
 
-        if (type === 'plus') return '+';
-        if (type === 'minus') return '-';
-        if (type === 'prod') return '*';
-        if (type === 'division') return '/';
-        if (type === 'remains') return '%';
+        const left = this.ResolveValue(leftInput);
+        const right = this.ResolveValue(rightInput);
 
-        if (block.classList.contains('left'))
-            return '(';
+        let result = false;
 
-        if (block.classList.contains('right'))
-            return ')';
-
-        const input = block.querySelector('input');
-        if (input)
-            return input.value.trim();
-
-        return '';
-    }
-
-    EvaluateExpression(expression)
-    {
-        const priority = 
+        switch(operator)
         {
-            '+': 1,
-            '-': 1,
-            '*': 2,
-            '/': 2,
-            '%': 2
-        };
-
-        const output = [];
-        const operators = [];
-
-        const tokens = expression.split(/\s+/);
-
-        tokens.forEach(token =>
-        {
-            if (!isNaN(token))
-            {
-                output.push(parseFloat(token));
-            }
-            else if (this.Variables.hasOwnProperty(token))
-            {
-                output.push(this.Variables[token]);
-            }
-            else if (token in priority)
-            {
-                while (operators.length &&
-                    priority[operators[operators.length - 1]] >= priority[token])
-                {
-                    output.push(operators.pop());
-                }
-                operators.push(token);
-            }
-            else if (token === '(')
-            {
-                operators.push(token);
-            }
-            else if (token === ')')
-            {
-                while (operators.length && operators[operators.length - 1] !== '(')
-                {
-                    output.push(operators.pop());
-                }
-                operators.pop();
-            }
-        });
-
-        while (operators.length)
-        {
-            output.push(operators.pop());
+            case '>': result = left > right; break;
+            case '<': result = left < right; break;
+            case '==': result = left == right; break;
+            case '!=': result = left != right; break;
+            case '>=': result = left >= right; break;
+            case '<=': result = left <= right; break;
         }
 
-        const stack = [];
-
-        output.forEach(token =>
+        if (!result)
         {
-            if (typeof token === 'number')
-            {
-                stack.push(token);
-            }
-            else
-            {
-                const b = stack.pop();
-                const a = stack.pop();
-
-                switch(token)
-                {
-                    case '+': 
-                        stack.push(a + b); 
-                        break;
-
-                    case '-': 
-                        stack.push(a - b);
-                        break;
-
-                    case '*': 
-                        stack.push(a * b);  
-                        break;
-                        
-                    case '/':
-                        if (b === 0) throw Error();
-                        stack.push(a / b);
-                        break;
-
-                    case '%':
-                        if (b === 0) throw Error();
-                        stack.push(a % b);
-                        break;
-                }
-            }
-        });
-
-        return stack[0];
+            this.SkipNextBlock = true;
+        }
     }
 
     ResolveValue(input)
     {
-        if (input === '') 
-            return 0;
+        if (input === '') return 0;
 
         if (!isNaN(input))
             return parseFloat(input);
@@ -688,31 +560,20 @@ class BlockInterpreter
 
         switch(type)
         {
-            case 'plus':
-                result = left + right;
-                break;
-            
-            case 'minus':
-                result = left - right;
-                break;
-
-            case 'prod':
-                result = left * right;
-                break;
-            
+            case 'plus': result = left + right; break;
+            case 'minus': result = left - right; break;
+            case 'prod': result = left * right; break;
             case 'division':
-                result = right !== 0 ? left / right : 'Ошибка!!! Деление на ноль запрещено.';
+                if (right === 0) return;
+                result = left / right;
                 break;
-
             case 'remains':
-                result = right !== 0 ? left % right : 'Ошибка!!! Деление на ноль запрещено.';
+                if (right === 0) return;
+                result = left % right;
                 break;
         }
 
-        if (typeof result === 'number')
-            this.LastValue = result;
-        else
-            this.LastValue = undefined;
+        this.LastValue = result;
     }
 }
 

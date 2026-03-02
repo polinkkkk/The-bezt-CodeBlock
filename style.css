@@ -451,6 +451,11 @@ header
     user-select: none;
     width:20%;
 }
+.block-bracket:hover
+    {
+        background-color: #e158aa;
+        transform: scale(1.05);
+    }
 
 .block-bracket::before
 {
@@ -476,4 +481,7 @@ header
     height: 40px;
     background: #4a90e2;
     border-radius: 0 5px 5px 0;
+}
+.if-left{
+    width: px;
 }

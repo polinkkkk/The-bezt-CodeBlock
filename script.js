@@ -476,8 +476,17 @@ class BlockInterpreter {
             case 'declare':
             case 'set':
                 if (name) {
-                    const value = value_input ? parseFloat(value_input.value) || 0 : 0;
-                    this.Variables[name] = value;
+                    const expression = value_input ? value_input.value.trim() : '';
+                    
+                    if (expression) 
+                    {
+                        const value = this.EvaluateExpression(expression);
+                        this.Variables[name] = value;
+                    } 
+                    else 
+                    {
+                        this.Variables[name] = 0;
+                    }
                 }
                 break;
 
@@ -515,23 +524,35 @@ class BlockInterpreter {
         }
     }
 
-    ExecuteIf(block) {
-        const leftInput = block.querySelector('.if-left').value.trim();
-        const operator = block.querySelector('.if-operator').value;
-        const rightInput = block.querySelector('.if-right').value.trim();
-
-        const left = this.ResolveValue(leftInput);
-        const right = this.ResolveValue(rightInput);
-
-        let result = false;
-        switch(operator) {
-            case '>': result = left > right; break;
-            case '<': result = left < right; break;
-            case '==': result = left == right; break;
-            case '!=': result = left != right; break;
-            case '>=': result = left >= right; break;
-            case '<=': result = left <= right; break;
+    EvaluateExpression(expression) {
+        if (!expression) return 0;
+        
+        if (!isNaN(expression)) return parseFloat(expression);
+        
+        try {
+            const tokens = expression.match(/(\d+\.?\d*|[a-zA-Z_][a-zA-Z0-9_]*|[+\-*/()]|%|\^)/g) || [];
+            
+            const evaluatedTokens = tokens.map(token => {
+                if (this.Variables.hasOwnProperty(token)) {
+                    return this.Variables[token];
+                }
+                return token;
+            });
+            
+            const expr = evaluatedTokens.join('');
+            
+            return Function('"use strict"; return (' + expr + ')')();
+        } catch (e) {
+            console.error("Ошибка вычисления выражения:", expression, e);
+            return 0;
         }
+    }
+
+    ExecuteIf(block) {
+        const expressionInput = block.querySelector('.if-expression');
+        const expression = expressionInput ? expressionInput.value.trim() : "";
+
+        const result = this.EvaluateLogicalExpression(expression);
 
         if (!result) {
             this.SkipToElse = true;
@@ -543,7 +564,43 @@ class BlockInterpreter {
         if (input === '') return 0;
         if (!isNaN(input)) return parseFloat(input);
         if (this.Variables.hasOwnProperty(input)) return this.Variables[input];
-        return 0;
+        
+        try {
+            return this.EvaluateExpression(input);
+        } 
+        catch {
+            return 0;
+        }
+    }
+
+    EvaluateLogicalExpression(expression) 
+    {
+        if (!expression) return false;
+
+        try 
+        {
+            let expr = expression
+                .replace(/\bAND\b/gi, "&&")
+                .replace(/\bOR\b/gi, "||")
+                .replace(/\bNOT\b/gi, "!")
+                .replace(/(?<![=!<>])=(?![=])/g, "==");
+
+            expr = expr.replace(/[a-zA-Z_][a-zA-Z0-9_]*/g, (name) => 
+            {
+                if (this.Variables.hasOwnProperty(name)) 
+                {
+                    return JSON.stringify(this.Variables[name]);
+                }
+                return name;
+            });
+
+            return Function('"use strict"; return (' + expr + ')')();
+        } 
+        catch 
+        {
+            console.error("Ошибка в выражении:", expression);
+            return false;
+        }
     }
 
     ExecuteArithmetic(block, type) {
@@ -602,24 +659,13 @@ class BlockInterpreter {
     }
 
     EvaluateWhileCondition(block) {
-        const leftInput = block.querySelector('.while-left').value.trim();
-        const operator = block.querySelector('.while-operator').value;
-        const rightInput = block.querySelector('.while-right').value.trim();
+        const expressionInput = block.querySelector('.while-expression');
+        const expression = expressionInput ? expressionInput.value.trim() : "";
 
-        const left = this.ResolveValue(leftInput);
-        const right = this.ResolveValue(rightInput);
-
-        switch(operator) {
-            case '>': return left > right;
-            case '<': return left < right;
-            case '==': return left == right;
-            case '!=': return left != right;
-            case '>=': return left >= right;
-            case '<=': return left <= right;
-        }
-        return false;
+        return this.EvaluateLogicalExpression(expression);
     }
 }
+
 const tabs = document.querySelectorAll(".tab");
 const panels = document.querySelectorAll(".panel");
 

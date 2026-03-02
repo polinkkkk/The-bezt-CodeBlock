@@ -52,41 +52,54 @@
                     <div class="block" data-type="if" >
                         <div>ЕСЛИ</div>
                         <div class="window">
-                             <input class="if-left" style = "width: 50px;" placeholder="переменная / число">
+                            <input class="if-left" style = "width: 50px;" placeholder="переменная / число">
 
-                              <select class="if-operator">
+                                <select class="if-operator">
                                    <option value=">">></option>
                                     <option value="<"><</option>
                                     <option value="==">==</option>
                                     <option value="!=">!=</option>
                                     <option value=">=">>=</option>
                                     option value="<="><=</option>
-                                 </select>
+                                </select>
 
-                         <input class="if-right" style = "width: 50px;" placeholder="переменная / число">
+                            <input class="if-right" style = "width: 50px;" placeholder="переменная / число">
                         </div>
-                     </div>
+                    </div>
+
+                    <div class="block" data-type="endif">
+                        <div>КОНЕЦ ЕСЛИ</div>
+                    </div>
+
+                    <div class="block" data-type="else">
+                        <div>ИНАЧЕ</div>
+                    </div>
+
+                    <div class="block" data-type="endelse">
+                        <div>КОНЕЦ ИНАЧЕ</div>
+                    </div>
+
                     <div class="block" data-type="while">
-    <div>ПОКА</div>
-    <div class="window">
-        <input class="while-left" style="width: 50px;" placeholder="переменная / число">
+                        <div>ПОКА</div>
+                        <div class="window">
+                            <input class="while-left" style="width: 50px;" placeholder="переменная / число">
 
-        <select class="while-operator">
-            <option value=">">></option>
-            <option value="<"><</option>
-            <option value="==">==</option>
-            <option value="!=">!=</option>
-            <option value=">=">>=</option>
-            <option value="<="><=</option>
-        </select>
+                            <select class="while-operator">
+                                <option value=">">></option>
+                                <option value="<"><</option>
+                                <option value="==">==</option>
+                                <option value="!=">!=</option>
+                                <option value=">=">>=</option>
+                                <option value="<="><=</option>
+                            </select>
 
-        <input class="while-right" style="width: 50px;" placeholder="переменная / число">
-    </div>
-</div>
+                            <input class="while-right" style="width: 50px;" placeholder="переменная / число">
+                        </div>
+                    </div>
 
-<div class="block" data-type="endwhile">
-    <div>КОНЕЦ ЦИКЛА</div>
-</div>
+                    <div class="block" data-type="endwhile">
+                        <div>КОНЕЦ ЦИКЛА</div>
+                    </div>
                 </div>
                 
                 <div class = "panel" id="operators">

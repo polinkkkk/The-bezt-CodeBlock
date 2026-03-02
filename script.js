@@ -394,14 +394,17 @@ class BlockInterpreter {
         this.Variables = {};
         this.Output = [];
         this.LastValue = undefined;
-        this.SkipNextBlock = false;
+        this.SkipToEndIf = false;
+        this.SkipToElse = false;
+        this.SkipToEndElse = false;
     }
 
     Run() {
-        this.LastValue = undefined;
-        this.SkipNextBlock = false;
+        this.LastValue = undefined; 
         this.Variables = {};
         this.Output = [];
+        this.SkipToElse = false;
+        this.SkipToEndElse = false;
 
         const root = this.FindRoot();
         if (!root) {
@@ -411,8 +414,24 @@ class BlockInterpreter {
 
         let current = root;
         while (current) {
-            if (this.SkipNextBlock) {
-                this.SkipNextBlock = false;
+            if (this.SkipToElse) {
+                if (current.dataset.type === 'else') {
+                    this.SkipToElse = false;
+                    this.SkipToEndIf = false;
+                }
+                else if (current.dataset.type === 'endif') {
+                    this.SkipToElse = false;
+                    this.SkipToEndIf = false;
+                }
+
+                current = this.GetNext(current);
+                continue;
+            }
+
+            if (this.SkipToEndElse) {
+                if (current.dataset.type === 'endelse') {
+                    this.SkipToEndElse = false;
+                }
                 current = this.GetNext(current);
                 continue;
             }
@@ -478,6 +497,13 @@ class BlockInterpreter {
             case 'if':
                 this.ExecuteIf(block);
                 break;
+            case 'endif':
+                break;
+            case 'else':
+                this.SkipToEndElse = true;
+                break;
+            case 'endelse':
+                break;
 
             case 'plus':
             case 'minus':
@@ -507,8 +533,11 @@ class BlockInterpreter {
             case '<=': result = left <= right; break;
         }
 
-        if (!result) this.SkipNextBlock = true;
-    }
+        if (!result) {
+            this.SkipToElse = true;
+            this.SkipToEndIf = true;
+        }
+    } 
 
     ResolveValue(input) {
         if (input === '') return 0;
@@ -518,34 +547,34 @@ class BlockInterpreter {
     }
 
     ExecuteArithmetic(block, type) {
-    const inputs = block.querySelectorAll('input');
-    const leftInput = inputs[0].value.trim();
-    const rightInput = inputs[1].value.trim();
+        const inputs = block.querySelectorAll('input');
+        const leftInput = inputs[0].value.trim();
+        const rightInput = inputs[1].value.trim();
 
-    const left = this.ResolveValue(leftInput);
-    const right = this.ResolveValue(rightInput);
+        const left = this.ResolveValue(leftInput);
+        const right = this.ResolveValue(rightInput);
 
-    let result = 0;
-    switch(type) {
-        case 'plus': result = left + right; break;
-        case 'minus': result = left - right; break;
-        case 'prod': result = left * right; break;
-        case 'division': 
-            if (right === 0) return;
-            result = left / right;
-            break;
-        case 'remains':
-            if (right === 0) return;
-            result = left % right;
-            break;
+        let result = 0;
+        switch(type) {
+            case 'plus': result = left + right; break;
+            case 'minus': result = left - right; break;
+            case 'prod': result = left * right; break;
+            case 'division': 
+                if (right === 0) return;
+                result = left / right;
+                break;
+            case 'remains':
+                if (right === 0) return;
+                result = left % right;
+                break;
+        }
+
+        this.LastValue = result;
+
+        if (leftInput && this.Variables.hasOwnProperty(leftInput)) {
+            this.Variables[leftInput] = result;
+        }
     }
-
-    this.LastValue = result;
-
-    if (leftInput && this.Variables.hasOwnProperty(leftInput)) {
-        this.Variables[leftInput] = result;
-    }
-}
 
     ExecuteWhile(block) {
         const startBlock = block;

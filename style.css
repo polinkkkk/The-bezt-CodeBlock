@@ -41,6 +41,12 @@ header
     user-select: none;
 }
 
+.dotted
+{
+    height: auto;      
+    overflow: auto;  
+}
+
 .left-blocks-panel 
 {
     margin-top: 10px;
@@ -485,3 +491,4 @@ header
 .if-left{
     width: px;
 }
+

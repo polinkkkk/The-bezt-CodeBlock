@@ -43,12 +43,6 @@
                         <input class="var-name" value="" style="margin-top: 8px;" placeholder="имя">
                     </div>
 
-                    <div class="block" data-type="save">
-                        <div>Сохранить результат в</div>
-                        <div class="window">
-                            <input class="var-name" placeholder="Имя">
-                        </div>
-                    </div>
                     <div class="block" data-type="if" >
                         <div>ЕСЛИ</div>
                         <div class="window">
@@ -78,6 +72,26 @@
                     <div class="block" data-type="endwhile">
                         <div>КОНЕЦ ЦИКЛА</div>
                     </div>
+                    
+                    <div class="block" data-type="array">
+                        <div>Объявление массива</div>
+                        <div class="window">
+                            <input class = "name" value="" placeholder="Имя">
+                            <input class="size" value="" placeholder="Размер">
+                        </div>
+                    </div>
+
+                    <div class="block" data-type="index">
+                        <div>Обращение по индексам</div>
+                        <div class="window">
+                            <input class = "name" style =" width:30px;" value="" placeholder="Имя">
+                            <span class = "square" style = "font-size: 20px">[</span>
+                            <input class="index" style =" width:40px;"value="" placeholder="Индекс">
+                            <span class = "square" style = "font-size: 20px">]</span>
+                        </div>
+                    </div>
+
+
                 </div>
                 
                 <div class = "panel" id="operators">
@@ -110,26 +124,6 @@
                         <input type = "text" placeholder = "имя"/>
                         <div class= "text" style = "font-size: 20px">%</div>
                         <input type = "text" placeholder = "имя"/>
-                    </div>
-
-                    <div class = "block ariphm single" data-type="single">
-                        <select>
-                            <option value="+">+</option>
-                            <option value="-">-</option>
-                            <option value="*">*</option>
-                            <option value="/">/</option>
-                            <option value="%">%</option>
-                            <option value="void"> </option>
-                        </select>
-                        <input type = "text" placeholder = "имя"/>
-                        <select>
-                            <option value="+">+</option>
-                            <option value="-">-</option>
-                            <option value="*">*</option>
-                            <option value="/">/</option>
-                            <option value="%">%</option>
-                            <option value="void"> </option>
-                        </select>
                     </div>
 
                     <div class="block-bracket right">

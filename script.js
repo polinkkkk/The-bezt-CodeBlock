@@ -397,6 +397,7 @@ class BlockInterpreter {
         this.SkipToEndIf = false;
         this.SkipToElse = false;
         this.SkipToEndElse = false;
+        this.Error = null;
     }
 
     Run() {
@@ -405,15 +406,36 @@ class BlockInterpreter {
         this.Output = [];
         this.SkipToElse = false;
         this.SkipToEndElse = false;
+        this.Error = null;
 
-        const root = this.FindRoot();
-        if (!root) {
+        const blocks = document.querySelectorAll('#WorkspaceArea .block, #WorkspaceArea .block-bracket');
+
+        if (blocks.length === 0) {
             document.getElementById('output').innerHTML = '❌ Добавь блоки в рабочую область!';
             return;
         }
 
+        if (blocks.length === 1) {
+            const singleBlock = blocks[0];
+            this.Execute(singleBlock);
+            
+            if (this.Error) {
+                this.ShowError(this.Error);
+                return;
+            }
+            
+            this.ShowSuccessOutput();
+            return;
+        }
+
+        const root = this.FindRoot(blocks);
+        if (!root) {
+            document.getElementById('output').innerHTML = '❌ Не удалось найти начало программы!';
+            return;
+        }
+
         let current = root;
-        while (current) {
+        while (current && !this.Error) {
             if (this.SkipToElse) {
                 if (current.dataset.type === 'else') {
                     this.SkipToElse = false;
@@ -445,16 +467,94 @@ class BlockInterpreter {
             current = this.GetNext(current);
         }
 
+        if (this.Error) {
+            this.ShowError(this.Error);
+            return;
+        }
+
+        this.ShowSuccessOutput();
+    }
+
+    ShowSuccessOutput() {
         const output = document.getElementById('output');
+        
+        if (this.Output.length === 0) {
+            output.innerHTML = `
+                <strong>✅ Выполнено успешно!</strong><br><br>
+                <span>Вывод отсутствует</span>`;
+            return;
+        }
+
+        const formattedOutput = this.Output.map(value => {
+            if (value === undefined) return '<span>undefined</span>';
+            if (value === null) return '<span>null</span>';
+            if (typeof value === 'string') return `<span>"${this.FormatString(value)}"</span>`;
+            if (typeof value === 'number') return `<span>${value}</span>`;
+            if (typeof value === 'boolean') return `<span>${value}</span>`;
+            if (Array.isArray(value)) return `<span>${this.FormatArray(value)}</span>`;
+            return this.FormatString(String(value));
+        }).join(' <span>→</span> ');
+
         output.innerHTML = `
-            <strong>Выполнено успешно!</strong><br><br>
-            📤 <strong>Вывод:</strong><br>
-            ${this.Output.length ? this.Output.map(v => `<code>${v}</code>`).join(' → ') : 'нет вывода'}
+            <strong>✅ Выполнено успешно!</strong><br><br>
+            <div>
+                <strong>📤 Вывод:</strong><br>
+                <div>
+                    ${formattedOutput}
+                </div>
+            </div>
         `;
     }
 
-    FindRoot() {
-        const blocks = document.querySelectorAll('#WorkspaceArea .block, #WorkspaceArea .block-bracket');
+    ShowError(message) {
+        const output = document.getElementById('output');
+        output.innerHTML = `
+            <strong>❌ Ошибка выполнения!</strong><br><br>
+            <div>
+                ${this.FormatString(message)}
+            </div>
+            <div>Последние значения переменных:<br>
+                ${this.FormatVariablesForError()}
+            </div>
+        `;
+    }
+
+    FormatVariablesForError() {
+        try {
+            const vars = Object.entries(this.Variables)
+                .map(([name, value]) => {
+                    let valueStr;
+                    if (typeof value === 'string') valueStr = `"${value}"`;
+                    else if (typeof value === 'object') valueStr = JSON.stringify(value);
+                    else valueStr = String(value);
+                    return `<code>${name} = ${valueStr}</code>`;
+                })
+                .join(', ');
+            return vars || '<code>Нет переменных</code>';
+        } catch {
+            return '<code>Не удалось отобразить переменные</code>';
+        }
+    }
+
+    FormatString(text) {
+        const div = document.createElement('div');
+        div.innerHTML = text;
+        return div.innerHTML;
+    }
+
+    FormatArray(arr) {
+        try {
+            const items = arr.map(item => {
+                if (typeof item === 'string') return `"${item}"`;
+                return String(item);
+            }).join(', ');
+            return `[${items}]`;
+        } catch {
+            return 'Ошибка в массиве!';
+        }
+    }
+
+    FindRoot(blocks) {
         return Array.from(blocks).find(block => !block.dataset.parent || block.dataset.parent === "");
     }
 
@@ -466,68 +566,117 @@ class BlockInterpreter {
         return null;
     }
 
+    EvaluatePrintValue(input) {
+        if (!input) return '';
+        
+        if (!isNaN(input) && input.trim() !== '') {
+            return parseFloat(input);
+        }
+        
+        if ((input.startsWith('"') && input.endsWith('"')) || 
+            (input.startsWith("'") && input.endsWith("'"))) {
+            return input.slice(1, -1);
+        }
+        
+        if (input === "true") return true;
+        if (input === "false") return false;
+        if (input === "null") return null;
+        if (input === "undefined") return undefined;
+        
+        if (this.Variables.hasOwnProperty(input)) {
+            return this.Variables[input];
+        }
+        
+        try {
+            return this.EvaluateExpression(input);
+        } catch {
+            return input;
+        }
+    }
+
     Execute(block) {
-        const type = block.dataset.type;
-        const name_input = block.querySelector('.var-name');
-        const value_input = block.querySelector('.var-value');
-        const name = name_input ? name_input.value.trim() : '';
+        try{
+            const type = block.dataset.type;
+            const name_input = block.querySelector('.var-name');
+            const value_input = block.querySelector('.var-value');
+            const name = name_input ? name_input.value.trim() : '';
 
-        switch(type) {
-            case 'declare':
-            case 'set':
+            if (type === 'print') {
                 if (name) {
-                    const expression = value_input ? value_input.value.trim() : '';
-                    
-                    if (expression) 
-                    {
-                        const value = this.EvaluateExpression(expression);
-                        this.Variables[name] = value;
-                    } 
-                    else 
-                    {
-                        this.Variables[name] = 0;
+                    const value = this.EvaluatePrintValue(name);
+                    this.Output.push(value);
+                } else {
+                    this.Output.push('');
+                }
+                return;
+            }
+
+            switch(type) {
+                case 'declare':
+                case 'set':
+                    if (name) {
+                        const expression = value_input ? value_input.value.trim() : '';
+                        
+                        if (expression) 
+                        {
+                            const value = this.EvaluateExpression(expression);
+                            this.Variables[name] = value;
+                        } 
+                        else 
+                        {
+                            this.Variables[name] = 0;
+                        }
                     }
-                }
-                break;
+                    break;
 
-            case 'print':
-                if (name) {
-                    const value = this.Variables[name];
-                    this.Output.push(value !== undefined ? value : 'undefined');
-                }
-                break;
+                case 'save':
+                    if (name && this.LastValue !== undefined) {
+                        this.Variables[name] = this.LastValue;
+                    }
+                    break;
 
-            case 'save':
-                if (name && this.LastValue !== undefined) {
-                    this.Variables[name] = this.LastValue;
-                }
-                break;
+                case 'if':
+                    this.ExecuteIf(block);
+                    break;
+                case 'endif':
+                    break;
+                case 'else':
+                    this.SkipToEndElse = true;
+                    break;
+                case 'endelse':
+                    break;
 
-            case 'if':
-                this.ExecuteIf(block);
-                break;
-            case 'endif':
-                break;
-            case 'else':
-                this.SkipToEndElse = true;
-                break;
-            case 'endelse':
-                break;
-
-            case 'plus':
-            case 'minus':
-            case 'prod':
-            case 'division':
-            case 'remains':
-                this.ExecuteArithmetic(block, type);
-                break;
+                case 'plus':
+                case 'minus':
+                case 'prod':
+                case 'division':
+                case 'remains':
+                    this.ExecuteArithmetic(block, type);
+                    break;
+            }
+        }
+        catch(error){
+            this.Error = `Ошибка в блоке ${block.dataset.type}: ${error.message}`;
         }
     }
 
     EvaluateExpression(expression) {
-        if (!expression) return 0;
+        if (!expression) return '';
+
+        if (expression.startsWith('"') && expression.endsWith('"')) {
+            return expression.slice(1, -1);
+        }
         
+        if (expression.startsWith("'") && expression.endsWith("'")) {
+            return expression.slice(1, -1);
+        }
+
         if (!isNaN(expression)) return parseFloat(expression);
+
+        if (expression === "true") return true;
+        if (expression === "false") return false;
+        if (expression === "null") return null;
+        if (expression === "undefined") return undefined;
         
         try {
             const tokens = expression.match(/(\d+\.?\d*|[a-zA-Z_][a-zA-Z0-9_]*|[+\-*/()]|%|\^)/g) || [];
@@ -549,19 +698,24 @@ class BlockInterpreter {
     }
 
     ExecuteIf(block) {
-        const expressionInput = block.querySelector('.if-expression');
-        const expression = expressionInput ? expressionInput.value.trim() : "";
+        try{
+            const expressionInput = block.querySelector('.if-expression');
+            const expression = expressionInput ? expressionInput.value.trim() : "";
 
-        const result = this.EvaluateLogicalExpression(expression);
+            const result = this.EvaluateLogicalExpression(expression);
 
-        if (!result) {
-            this.SkipToElse = true;
-            this.SkipToEndIf = true;
+            if (!result) {
+                this.SkipToElse = true;
+                this.SkipToEndIf = true;
+            }
+        }
+        catch(error){
+            this.Error = `Ошибка в условии if: ${error.message}`;
         }
     } 
 
     ResolveValue(input) {
-        if (input === '') return 0;
+        if (!input) return '';
         if (!isNaN(input)) return parseFloat(input);
         if (this.Variables.hasOwnProperty(input)) return this.Variables[input];
         
@@ -570,7 +724,7 @@ class BlockInterpreter {
         } 
         catch {
             return 0;
-        }
+        }   
     }
 
     EvaluateLogicalExpression(expression) 
@@ -634,16 +788,30 @@ class BlockInterpreter {
     }
 
     ExecuteWhile(block) {
-        const startBlock = block;
-        const endBlock = this.FindEndWhile(startBlock);
-        if (!endBlock) return this.GetNext(block); 
+        try{
+            const startBlock = block;
+            const endBlock = this.FindEndWhile(startBlock);
+            if (!endBlock) return this.GetNext(block); 
 
-        while (this.EvaluateWhileCondition(startBlock)) {
-            let current = startBlock.dataset.child ? document.getElementById(startBlock.dataset.child) : this.GetNext(startBlock);
-            while (current && current !== endBlock) {
-                this.Execute(current);
-                current = this.GetNext(current);
+            let iterations = 0;
+            const MAX_ITERATIONS = 10000;
+
+            while (this.EvaluateWhileCondition(startBlock) && iterations < MAX_ITERATIONS) {
+                let current = startBlock.dataset.child ? document.getElementById(startBlock.dataset.child) : this.GetNext(startBlock);
+                while (current && current !== endBlock && !this.Error) {
+                    this.Execute(current);
+                    if (this.Error) break;
+                    current = this.GetNext(current);
+                }
+                iterations++;
             }
+
+            if (iterations > MAX_ITERATIONS){
+                this.Error = 'Превышено максимальное количество итераций цикла (10000)';
+            }
+        }
+        catch(error){
+            this.Error = `Ошибка в цикле while: ${error.message}`;
         }
 
         return this.GetNext(endBlock); 

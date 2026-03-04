@@ -41,12 +41,6 @@ header
     user-select: none;
 }
 
-.dotted
-{
-    height: auto;      
-    overflow: auto;  
-}
-
 .left-blocks-panel 
 {
     margin-top: 10px;
@@ -259,7 +253,9 @@ header
 {
     flex: 1;
     margin-top: 10px;
-    min-height: 700px;
+    max-height: 700px;
+    min-width: 600px;
+    overflow: auto;
     background-image: 
         repeating-linear-gradient(0deg, rgba(0,0,0,0.1), rgba(0,0,0,0.1) 1px, transparent 1px, transparent 20px),
         repeating-linear-gradient(90deg, rgba(0,0,0,0.1), rgba(0,0,0,0.1) 1px, transparent 1px, transparent 20px);
@@ -268,6 +264,10 @@ header
     position: relative;
     background-color: #f0f8ff;
     padding: 20px;
+}
+
+#WorkspaceArea {
+    scroll-behavior: smooth;
 }
 
 .window 
@@ -491,4 +491,3 @@ header
 .if-left{
     width: px;
 }
-

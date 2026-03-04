@@ -1,5 +1,5 @@
 class DragAndDropManager
- {
+{
     constructor() 
     {
         this.DraggingNowElement = null;
@@ -10,11 +10,13 @@ class DragAndDropManager
         this.CurrentX = 0;
         this.CurrentY = 0;
         
-
+        this.PaddingBuffer = 100;
+        this.DefaultWorkspaceSize = 400;
         this.SnapDistance = 40;
 
         this.WorkspaceArea = document.getElementById('WorkspaceArea');
         this.BlocksContainer = document.getElementById('BlocksContainer');
+        this.WorkspaceArea.addEventListener('scroll', this.OnScroll.bind(this));
 
         this.Init();
     }
@@ -23,6 +25,12 @@ class DragAndDropManager
     {
         this.MakeBlocksDraggable();
         this.AddDocumentListeners();
+    }
+
+    OnScroll() {
+        if (this.IsDragging && this.DraggingNowElement) {
+            this.MoveAt(this.CurrentX, this.CurrentY);
+        }
     }
 
     MakeBlocksDraggable() 
@@ -42,6 +50,8 @@ class DragAndDropManager
 
     OnMouseDown(event) 
     {
+        if (this.IsDragging) return; 
+
         const block = event.target.closest('.block, .block-bracket');
         if (!block) 
             return;
@@ -90,10 +100,13 @@ class DragAndDropManager
             
             const workspace_rectangle = this.WorkspaceArea.getBoundingClientRect();
 
+            const scrollLeft = this.WorkspaceArea.scrollLeft;
+            const scrollTop = this.WorkspaceArea.scrollTop;
+
             this.DraggingNowElement = block;
 
-            this.DraggingNowElement.style.left = (rectangle.left - workspace_rectangle.left) + 'px';
-            this.DraggingNowElement.style.top = (rectangle.top - workspace_rectangle.top) + 'px';
+            this.DraggingNowElement.style.left = (rectangle.left - workspace_rectangle.left + scrollLeft) + 'px';
+            this.DraggingNowElement.style.top = (rectangle.top - workspace_rectangle.top + scrollTop) + 'px';
 
             this.DraggingNowElement.style.position = 'absolute';
         }
@@ -131,9 +144,14 @@ class DragAndDropManager
         {
             const workspace_rectangle = this.WorkspaceArea.getBoundingClientRect();
 
-            this.DraggingNowElement.style.left = (x - workspace_rectangle.left - this.OffsetX) + 'px';
+            const scrollLeft = this.WorkspaceArea.scrollLeft;
+            const scrollTop = this.WorkspaceArea.scrollTop;
 
-            this.DraggingNowElement.style.top = (y - workspace_rectangle.top - this.OffsetY) + 'px';
+            this.DraggingNowElement.style.left = 
+                (x - workspace_rectangle.left - this.OffsetX + scrollLeft) + 'px';
+
+            this.DraggingNowElement.style.top = 
+                (y - workspace_rectangle.top - this.OffsetY + scrollTop) + 'px';
         }
     }
 
@@ -141,6 +159,10 @@ class DragAndDropManager
     {
         if (!this.IsDragging) 
             return;  
+
+        if (this.DraggingNowElement) {
+            this.DraggingNowElement.classList.remove('dragging');
+        }
 
         const workspace_rectangle = this.WorkspaceArea.getBoundingClientRect();
 
@@ -168,125 +190,136 @@ class DragAndDropManager
     }
 
     TrySnap(block)
-{
-    const blocks = Array.from(
-        this.WorkspaceArea.querySelectorAll('.block, .block-bracket')
-    ).filter(b => b !== block);
-
-    const rect1 = block.getBoundingClientRect();
-    const workspaceRect = this.WorkspaceArea.getBoundingClientRect();
-
-    let closest = null;
-    let minDist = this.SnapDistance;
-    let snapType = null;
-
-    for (let other of blocks)
     {
-        const rect2 = other.getBoundingClientRect();
+        const blocks = Array.from(
+            this.WorkspaceArea.querySelectorAll('.block, .block-bracket')
+            ).filter(b => b !== block);
 
-        const isHorizontal =
-    block.classList.contains('ariphm') ||
-    block.classList.contains('block-bracket');
+        const rect1 = block.getBoundingClientRect();
+        const workspaceRect = this.WorkspaceArea.getBoundingClientRect();
 
-const otherHorizontal =
-    other.classList.contains('ariphm') ||
-    other.classList.contains('block-bracket');
+        const scrollLeft = this.WorkspaceArea.scrollLeft;
+        const scrollTop = this.WorkspaceArea.scrollTop;
 
+        let closest = null;
+        let minDist = this.SnapDistance;
+        let snapType = null;
 
-        if (isHorizontal && otherHorizontal)
+        for (let other of blocks)
         {
-            if (other.dataset.right) continue;
+            const rect2 = other.getBoundingClientRect();
 
-            const horizontal = Math.abs(rect1.left - rect2.right);
-            const vertical = Math.abs(rect1.top - rect2.top);
+            const isHorizontal =
+                block.classList.contains('ariphm') ||
+                block.classList.contains('block-bracket');
 
-            if (horizontal < minDist && vertical < 40)
+            const otherHorizontal =
+                other.classList.contains('ariphm') ||
+                other.classList.contains('block-bracket');
+
+
+            if (isHorizontal && otherHorizontal)
             {
-                closest = other;
-                minDist = horizontal;
-                snapType = "horizontal";
+                if (other.dataset.right) continue;
+
+                const horizontal = Math.abs(rect1.left - rect2.right);
+                const vertical = Math.abs(rect1.top - rect2.top);
+
+                if (horizontal < minDist && vertical < 40)
+                {
+                    closest = other;
+                    minDist = horizontal;
+                    snapType = "horizontal";
+                }
+            }
+
+            if (!block.dataset.left && !block.dataset.right)
+            {
+                if (other.dataset.child) continue;
+
+                const vertical = Math.abs(rect1.top - rect2.bottom);
+                const horizontal = Math.abs(rect1.left - rect2.left);
+
+                if (vertical < minDist && horizontal < 60)
+                {
+                    closest = other;
+                    minDist = vertical;
+                    snapType = "vertical";
+                }
             }
         }
 
-        if (!block.dataset.left && !block.dataset.right)
+        if (!closest) return;
+
+        const rect2 = closest.getBoundingClientRect();
+
+        if (snapType === "horizontal")
         {
-            if (other.dataset.child) continue;
+            block.style.left =
+                (rect2.right - workspaceRect.left + scrollLeft) + 'px';
 
-            const vertical = Math.abs(rect1.top - rect2.bottom);
-            const horizontal = Math.abs(rect1.left - rect2.left);
+            block.style.top =
+                (rect2.top - workspaceRect.top + scrollTop) + 'px';
 
-            if (vertical < minDist && horizontal < 60)
-            {
-                closest = other;
-                minDist = vertical;
-                snapType = "vertical";
-            }
+            block.dataset.left = closest.id;
+            closest.dataset.right = block.id;
+
+            block.dataset.parent = "";
+            closest.dataset.child = "";
+        }
+
+        if (snapType === "vertical")
+        {
+            block.style.left =
+                (rect2.left - workspaceRect.left + scrollLeft) + 'px';
+
+            block.style.top =
+                (rect2.bottom - workspaceRect.top + scrollTop) + 'px';
+
+            block.dataset.parent = closest.id;
+            closest.dataset.child = block.id;
         }
     }
 
-    if (!closest) return;
-
-    const rect2 = closest.getBoundingClientRect();
-
-    if (snapType === "horizontal")
+    DetachBlock(block)
     {
-        block.style.left =
-            (rect2.right - workspaceRect.left) + 'px';
+        const parent_id = block.dataset.parent;
+        if (parent_id)
+        {
+            const parent = document.getElementById(parent_id);
+            if (parent) parent.dataset.child = "";
+            block.dataset.parent = "";
+        }
 
-        block.style.top =
-            (rect2.top - workspaceRect.top) + 'px';
+        const left_id = block.dataset.left;
+        if (left_id)
+        {
+            const left = document.getElementById(left_id);
+            if (left) left.dataset.right = "";
+            block.dataset.left = "";
+        }
 
-        block.dataset.left = closest.id;
-        closest.dataset.right = block.id;
+        const right_id = block.dataset.right;
+        if (right_id)
+        {
+            const right = document.getElementById(right_id);
+            if (right) right.dataset.left = "";
+            block.dataset.right = "";
+        }
     }
 
-    if (snapType === "vertical")
-    {
-        block.style.left =
-            (rect2.left - workspaceRect.left) + 'px';
-
-        block.style.top =
-            (rect2.bottom - workspaceRect.top) + 'px';
-
-        block.dataset.parent = closest.id;
-        closest.dataset.child = block.id;
-    }
-}
-
-
-DetachBlock(block)
-{
-    const parent_id = block.dataset.parent;
-    if (parent_id)
-    {
-        const parent = document.getElementById(parent_id);
-        if (parent) parent.dataset.child = "";
-        block.dataset.parent = "";
-    }
-
-    const left_id = block.dataset.left;
-    if (left_id)
-    {
-        const left = document.getElementById(left_id);
-        if (left) left.dataset.right = "";
-        block.dataset.left = "";
-    }
-
-    const right_id = block.dataset.right;
-    if (right_id)
-    {
-        const right = document.getElementById(right_id);
-        if (right) right.dataset.left = "";
-        block.dataset.right = "";
-    }
-}
     DropInsideWorkspace(event) 
     {
         const workspace_rectangle = this.WorkspaceArea.getBoundingClientRect();
+        const scrollLeft = this.WorkspaceArea.scrollLeft;
+        const scrollTop = this.WorkspaceArea.scrollTop;
+
+        const newTop = event.clientY - workspace_rectangle.top - this.OffsetY + scrollTop;
+        const newLeft = event.clientX - workspace_rectangle.left - this.OffsetX + scrollLeft;
 
         if (!this.WorkspaceArea.contains(this.OriginalElement)) 
         {
-            this.DraggingNowElement.style.position = 'absolute';
+            this.DraggingNowElement.style.position = 'absolute';    
             this.DraggingNowElement.style.pointerEvents = 'auto';
 
             this.WorkspaceArea.appendChild(this.DraggingNowElement);
@@ -303,14 +336,62 @@ DetachBlock(block)
             );
         }
 
-        this.DraggingNowElement.style.left =
-            (event.clientX - workspace_rectangle.left - this.OffsetX) + 'px';
+        this.DraggingNowElement.style.left = (newLeft) + 'px';
 
-        this.DraggingNowElement.style.top =
-            (event.clientY - workspace_rectangle.top - this.OffsetY) + 'px';
+        this.DraggingNowElement.style.top = (newTop) + 'px';
+
+        this.ExpandWorkspaceIfNeeded(newLeft, newTop);
 
         this.DraggingNowElement.classList.remove('dragging');
         this.CheckHint();
+    }
+
+    ExpandWorkspaceIfNeeded(x, y) 
+    {
+        const block = this.DraggingNowElement;
+        if (!block) return;
+        
+        const blockHeight = block.offsetHeight;
+        
+        const blockBottom = y + blockHeight + this.PaddingBuffer;
+        
+        const currentHeight = parseInt(this.WorkspaceArea.style.minHeight) || this.WorkspaceArea.clientHeight;
+        
+        const needsHeightExpand = blockBottom > currentHeight;
+        if (needsHeightExpand) {
+            const newHeight = needsHeightExpand ? Math.max(blockBottom, currentHeight) : currentHeight;
+            
+            this.WorkspaceArea.style.minHeight = newHeight + 'px';
+        }
+    }
+
+    ShrinkWorkspaceIfNeeded() 
+    {
+        const blocks = this.WorkspaceArea.querySelectorAll('.block, .block-bracket');
+        
+        if (blocks.length === 0) {
+            this.WorkspaceArea.style.minHeight = this.DefaultWorkspaceSize + 'px';
+            return;
+        }
+
+        let maxY = 0;
+        
+        blocks.forEach(block => {
+            const left = parseInt(block.style.left) || 0;
+            const top = parseInt(block.style.top) || 0;
+            const width = block.offsetWidth;
+            const height = block.offsetHeight;
+            
+            maxY = Math.max(maxY, top + height);
+        });
+        
+        const targetHeight = Math.max(maxY + this.PaddingBuffer, this.DefaultWorkspaceSize);
+        
+        const currentHeight = parseInt(this.WorkspaceArea.style.minHeight) || this.WorkspaceArea.clientHeight;
+        
+        if (targetHeight < currentHeight) {
+            this.WorkspaceArea.style.minHeight = targetHeight + 'px';
+        }
     }
 
     CheckHint() 
@@ -384,6 +465,10 @@ class BlockDeleter
         {
             drag_manager.CheckHint();
         }
+
+        if (drag_manager.ShrinkWorkspaceIfNeeded) {
+            drag_manager.ShrinkWorkspaceIfNeeded();
+        }
         
         document.getElementById('output').innerHTML = '🧹 Рабочая область очищена!';
     }
@@ -392,6 +477,8 @@ class BlockDeleter
 class BlockInterpreter {
     constructor() {
         this.Variables = {};
+        this.Arrays = {};
+        this.LoopStack = [];
         this.Output = [];
         this.LastValue = undefined;
         this.SkipToEndIf = false;
@@ -403,6 +490,8 @@ class BlockInterpreter {
     Run() {
         this.LastValue = undefined; 
         this.Variables = {};
+        this.Arrays = {};
+        this.LoopStack = [];
         this.Output = [];
         this.SkipToElse = false;
         this.SkipToEndElse = false;
@@ -459,7 +548,19 @@ class BlockInterpreter {
             }
 
             if (current.dataset.type === 'while') {
+                this.SkipToElse = false;  
+                this.SkipToEndElse = false;
+                this.LoopStack.push({
+                    startBlock: current,
+                    currentBlock: current.dataset.child ? document.getElementById(current.dataset.child) : null
+                });
                 current = this.ExecuteWhile(current);
+                continue;
+            }
+
+            if (current.dataset.type === 'endwhile') {
+                this.LoopStack.pop();
+                current = this.GetNext(current);
                 continue;
             }
 
@@ -493,7 +594,7 @@ class BlockInterpreter {
             if (typeof value === 'boolean') return `<span>${value}</span>`;
             if (Array.isArray(value)) return `<span>${this.FormatArray(value)}</span>`;
             return this.FormatString(String(value));
-        }).join(' <span>→</span> ');
+        }).join('<br>');
 
         output.innerHTML = `
             <strong>✅ Выполнено успешно!</strong><br><br>
@@ -521,16 +622,26 @@ class BlockInterpreter {
 
     FormatVariablesForError() {
         try {
+            let result = [];
             const vars = Object.entries(this.Variables)
                 .map(([name, value]) => {
                     let valueStr;
                     if (typeof value === 'string') valueStr = `"${value}"`;
-                    else if (typeof value === 'object') valueStr = JSON.stringify(value);
                     else valueStr = String(value);
                     return `<code>${name} = ${valueStr}</code>`;
-                })
-                .join(', ');
-            return vars || '<code>Нет переменных</code>';
+                });
+            
+            result = result.concat(vars);    
+
+            const arrays = Object.entries(this.Arrays)
+                .map(([name, array]) => {
+                    return `<code>${name} = [${array.join(', ')}]</code>`;
+                });
+            
+
+            result = result.concat(arrays);
+
+            return result.join(', ') || '<code>Нет переменных</code>';
         } catch {
             return '<code>Не удалось отобразить переменные</code>';
         }
@@ -559,11 +670,41 @@ class BlockInterpreter {
     }
 
     GetNext(block) {
-        if (block.dataset.right)
-            return document.getElementById(block.dataset.right);
-        if (block.dataset.child)
-            return document.getElementById(block.dataset.child);
+        if (!block) return null;
+        
+        if (block.dataset.right) {
+            const right = document.getElementById(block.dataset.right);
+            if (right) return right;
+        }
+        
+        if (block.dataset.child) {
+            const child = document.getElementById(block.dataset.child);
+            if (child) return child;
+        }
+        
+        let current = block;
+        while (current.dataset.parent) {
+            const parent = document.getElementById(current.dataset.parent);
+            if (parent && parent.dataset.right) {
+                const right = document.getElementById(parent.dataset.right);
+                if (right) return right;
+            }
+            current = parent;
+        }
+        
         return null;
+    }
+
+    GetAllBlocksInWhile(startBlock, endBlock) {
+        const blocks = [];
+        let current = startBlock.dataset.child ? document.getElementById(startBlock.dataset.child) : null;
+        
+        while (current && current !== endBlock) {
+            blocks.push(current);
+            current = this.GetNext(current);
+        }
+        
+        return blocks;
     }
 
     EvaluatePrintValue(input) {
@@ -582,9 +723,25 @@ class BlockInterpreter {
         if (input === "false") return false;
         if (input === "null") return null;
         if (input === "undefined") return undefined;
-        
+
         if (this.Variables.hasOwnProperty(input)) {
             return this.Variables[input];
+        }
+
+        const arrayMatch = input.match(/^([a-zA-Z_][a-zA-Z0-9_]*)\[([^\]]+)\]$/);
+        if (arrayMatch) {
+            const arrayName = arrayMatch[1];
+            const indexExpr = arrayMatch[2];
+            const index = this.EvaluateExpression(indexExpr);
+            
+            if (this.Arrays.hasOwnProperty(arrayName)) {
+                if (index >= 0 && index < this.Arrays[arrayName].length) {
+                    return this.Arrays[arrayName][index];
+                } else {
+                    this.Error = `Индекс ${index} вне границ массива ${arrayName}`;
+                    return;
+                }
+            }
         }
         
         try {
@@ -629,10 +786,14 @@ class BlockInterpreter {
                     }
                     break;
 
-                case 'save':
-                    if (name && this.LastValue !== undefined) {
-                        this.Variables[name] = this.LastValue;
-                    }
+                case 'array':
+                    this.ExecuteArrayDeclaration(block);
+                    break;
+                case 'index-declare':
+                    this.ExecuteArraySet(block);
+                    break;
+                case 'index-take':
+                    this.ExecuteArrayGet(block);
                     break;
 
                 case 'if':
@@ -660,6 +821,99 @@ class BlockInterpreter {
         }
     }
 
+    ExecuteArrayDeclaration(block) {
+        const nameInput = block.querySelector('.name');
+        const sizeInput = block.querySelector('.size');
+        
+        if (nameInput && sizeInput) {
+            const name = nameInput.value.trim();
+            const sizeFiltered = sizeInput.value.trim();
+            
+            if (name && sizeFiltered) {
+                const size = this.EvaluateExpression(sizeFiltered);
+                if (typeof size === 'number' && size > 0 && Number.isInteger(size)) {
+                    this.Arrays[name] = new Array(size).fill(0);
+                } else {
+                    this.Error = `Некорректный размер массива: ${sizeFiltered}`;
+                    return;
+                }
+            }
+        }
+    }
+
+    ExecuteArraySet(block) {
+        const nameInput = block.querySelector('.name');
+        const indexInput = block.querySelector('.index');
+        const valueInput = block.querySelector('.value');
+        
+        if (nameInput && indexInput && valueInput) {
+            const name = nameInput.value.trim();
+            const indexFiltered = indexInput.value.trim();
+            const valueFiltered = valueInput.value.trim();
+            
+            if (name && indexFiltered && valueFiltered) {
+                if (!this.Arrays.hasOwnProperty(name)) {
+                    this.Error = `Массив ${name} не объявлен`;
+                }
+                
+                const index = this.EvaluateExpression(indexFiltered);
+                const value = this.EvaluateExpression(valueFiltered);
+                
+                if (typeof index !== 'number' || !Number.isInteger(index) || index < 0) {
+                    this.Error = `Индекс должен быть неотрицательным целым числом: ${indexFiltered}`;
+                }
+                
+                if (index >= this.Arrays[name].length) {
+                    this.Error = `Индекс ${index} вне границ массива ${name} [0 - ${this.Arrays[name].length - 1}]`;
+                }
+                
+                this.Arrays[name][index] = value;
+            }
+        }
+    }
+
+    ExecuteArrayGet(block)
+    {
+        const varName = block.querySelector(".name");
+        const arrName = block.querySelector(".value");
+        const arrIndex = block.querySelector(".index");
+
+        if (varName && arrName && arrIndex)
+        {
+            const varNameFiltered = varName.value.trim();
+            const arrNameFiltered = arrName.value.trim();
+            const arrIndexFiltered = arrIndex.value.trim();
+
+            if (varNameFiltered && arrNameFiltered && arrIndexFiltered)
+            {
+                if (!this.Variables.hasOwnProperty(varNameFiltered)){
+                    this.Error = `Переменная ${varNameFiltered} не объявлена`;
+                    return;
+                }
+
+                if (!this.Arrays.hasOwnProperty(arrNameFiltered)){
+                    this.Error = `Массив ${arrNameFiltered} не объявлен`;
+                    return;
+                }
+
+                const index = this.EvaluateExpression(arrIndexFiltered);
+
+                if (typeof index !== "number" || !Number.isInteger(index) || index < 0){
+                    this.Error = `Индекс должен быть неотрицательным целым числом: ${index}`;
+                    return;
+                }
+
+                if (index >= this.Arrays[arrNameFiltered].length) {
+                    this.Error = `Индекс ${index} вне границ массива ${arrNameFiltered} 
+                                [0 - ${this.Arrays[arrNameFiltered].length - 1}]`;
+                    return;
+                }
+
+                this.Variables[varNameFiltered] = this.Arrays[arrNameFiltered][index];
+            }
+        }
+    }
+
     EvaluateExpression(expression) {
         if (!expression) return '';
 
@@ -677,22 +931,49 @@ class BlockInterpreter {
         if (expression === "false") return false;
         if (expression === "null") return null;
         if (expression === "undefined") return undefined;
-        
+
         try {
-            const tokens = expression.match(/(\d+\.?\d*|[a-zA-Z_][a-zA-Z0-9_]*|[+\-*/()]|%|\^)/g) || [];
-            
-            const evaluatedTokens = tokens.map(token => {
-                if (this.Variables.hasOwnProperty(token)) {
-                    return this.Variables[token];
+            expression = expression.replace(/([a-zA-Z_][a-zA-Z0-9_]*)\[([^\]]+)\]/g, 
+                (match, arrayName, indexExpr) => {
+                if (this.Arrays.hasOwnProperty(arrayName)) {
+                    const index = this.EvaluateExpression(indexExpr);
+                    if (index >= 0 && index < this.Arrays[arrayName].length) {
+                        const value = this.Arrays[arrayName][index];
+                        if (typeof value === 'string') {
+                            return `"${value}"`;
+                        }
+                        return value;
+                    } else {
+                        this.Error = `Индекс ${index} вне границ массива ${arrayName}`;
+                        return;
+                    }
+                } else {
+                    this.Error = `Массив ${arrayName} не объявлен`;
                 }
-                return token;
             });
             
-            const expr = evaluatedTokens.join('');
+            expression = expression.replace(/[a-zA-Z_][a-zA-Z0-9_]*/g, (name) => {
+                if (this.Variables.hasOwnProperty(name)) {
+                    if (typeof this.Variables[name] === 'string') {
+                        return `"${this.Variables[name]}"`;
+                    }
+                    return this.Variables[name];
+                }
+                return name;
+            });
             
-            return Function('"use strict"; return (' + expr + ')')();
-        } catch (e) {
-            console.error("Ошибка вычисления выражения:", expression, e);
+            if (expression.trim() === '') return '';
+            
+            try {
+                return Function('"use strict"; return (' + expression + ')')();
+            } 
+            catch (evalError) {
+                console.error("Ошибка вычисления выражения:", expression, evalError);
+                return expression;
+            }
+        } 
+        catch (error) {
+            console.error("Ошибка в вычислении выражения", expression, error);
             return 0;
         }
     }
@@ -739,6 +1020,47 @@ class BlockInterpreter {
                 .replace(/\bNOT\b/gi, "!")
                 .replace(/(?<![=!<>])=(?![=])/g, "==");
 
+
+            const evaluateArithmetic = (str) => {
+                return str.replace(/([a-zA-Z_][a-zA-Z0-9_]*)\s*([\+\-\*\/])\s*([a-zA-Z0-9_]+)/g, 
+                    (match, left, op, right) => {
+                        const leftVal = this.ResolveValue(left);
+                        const rightVal = this.ResolveValue(right);
+                        
+                        switch(op) {
+                            case '+': return leftVal + rightVal;
+                            case '-': return leftVal - rightVal;
+                            case '*': return leftVal * rightVal;
+                            case '/': return rightVal !== 0 ? leftVal / rightVal : 0;
+                            default: return match;
+                        }
+                    });
+            };
+
+            expr = expr.replace(/([a-zA-Z_][a-zA-Z0-9_]*)\[([^\]]+)\]/g, 
+                (match, arrayName, indexExpr) => {
+                if (this.Arrays.hasOwnProperty(arrayName)) {
+                    const index = this.EvaluateExpression(indexExpr);
+                    if (index >= 0 && index < this.Arrays[arrayName].length) {
+                        return JSON.stringify(this.Arrays[arrayName][index]);
+                    }
+                    else {
+                        this.Error = `Индекс ${index} вне границ массива ${arrayName}`;
+                        return '0';
+                    }
+                } 
+                else {
+                    this.Error = `Массив ${arrayName} не объявлен`;
+                    return '0'; 
+                }
+            });
+
+            expr = expr.replace(/\(([^\(\)]+)\)/g, (match, inner) => {
+                return evaluateArithmetic(inner);
+            });
+
+            expr = evaluateArithmetic(expr);    
+
             expr = expr.replace(/[a-zA-Z_][a-zA-Z0-9_]*/g, (name) => 
             {
                 if (this.Variables.hasOwnProperty(name)) 
@@ -748,11 +1070,17 @@ class BlockInterpreter {
                 return name;
             });
 
-            return Function('"use strict"; return (' + expr + ')')();
+            try {
+                return Function('"use strict"; return (' + expr + ')')();
+            } 
+            catch (evalError) {
+                this.Error = "Ошибка вычисления выражения:", expr, evalError;
+                return false;
+            }
         } 
         catch 
         {
-            console.error("Ошибка в выражении:", expression);
+            this.Error = "Ошибка в выражении:", expression;
             return false;
         }
     }
@@ -796,31 +1124,73 @@ class BlockInterpreter {
             let iterations = 0;
             const MAX_ITERATIONS = 10000;
 
-            while (this.EvaluateWhileCondition(startBlock) && iterations < MAX_ITERATIONS) {
-                let current = startBlock.dataset.child ? document.getElementById(startBlock.dataset.child) : this.GetNext(startBlock);
+            while (this.EvaluateWhileCondition(startBlock) && iterations < MAX_ITERATIONS && !this.Error) {
+                this.SkipToElse = false;
+                this.SkipToEndElse = false;
+
+                let current = startBlock.dataset.child ? 
+                    document.getElementById(startBlock.dataset.child) : 
+                    this.GetNext(startBlock);
+
                 while (current && current !== endBlock && !this.Error) {
+                    if (this.SkipToElse) {
+                        if (current.dataset.type === 'else' || current.dataset.type === 'endif') {
+                            this.SkipToElse = false;
+                        }
+                        current = this.GetNext(current);
+                        continue;
+                    }
+
+                    if (this.SkipToEndElse) {
+                        if (current.dataset.type === 'endelse') {
+                            this.SkipToEndElse = false;
+                        }
+                        current = this.GetNext(current);
+                        continue;
+                    }
+
                     this.Execute(current);
+                    
+                    if (this.SkipToElse || this.SkipToEndElse) {
+                        current = this.GetNext(current);
+                        continue;
+                    }
+
                     if (this.Error) break;
+                
                     current = this.GetNext(current);
                 }
+                
                 iterations++;
             }
 
             if (iterations > MAX_ITERATIONS){
                 this.Error = 'Превышено максимальное количество итераций цикла (10000)';
             }
+
+            return this.GetNext(endBlock);
         }
         catch(error){
             this.Error = `Ошибка в цикле while: ${error.message}`;
+            return this.GetNext(block);
         }
-
-        return this.GetNext(endBlock); 
     }
 
     FindEndWhile(startBlock) {
         let current = this.GetNext(startBlock);
+        let depth = 1;
         while (current) {
-            if (current.dataset.type === 'endwhile') return current;
+            if (current.dataset.type === 'while') {
+                depth++;
+            }
+
+            else if (current.dataset.type === 'endwhile') {
+                depth--;
+                if (depth === 0) {
+                    return current;
+                }
+            }
+            
             current = this.GetNext(current);
         }
         return null;

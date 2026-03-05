@@ -485,6 +485,7 @@ class BlockInterpreter {
         this.SkipToElse = false;
         this.SkipToEndElse = false;
         this.Error = null;
+        this.MaxIterations = 10000;
     }
 
     Run() {
@@ -523,57 +524,68 @@ class BlockInterpreter {
             return;
         }
 
-        let current = root;
-        while (current && !this.Error) {
-            if (this.SkipToElse) {
-                if (current.dataset.type === 'else') {
-                    this.SkipToElse = false;
-                    this.SkipToEndIf = false;
-                }
-                else if (current.dataset.type === 'endif') {
-                    this.SkipToElse = false;
-                    this.SkipToEndIf = false;
-                }
-
-                current = this.GetNext(current);
-                continue;
-            }
-
-            if (this.SkipToEndElse) {
-                if (current.dataset.type === 'endelse') {
-                    this.SkipToEndElse = false;
-                }
-                current = this.GetNext(current);
-                continue;
-            }
-
-            if (current.dataset.type === 'while') {
-                this.SkipToElse = false;  
-                this.SkipToEndElse = false;
-                this.LoopStack.push({
-                    startBlock: current,
-                    currentBlock: current.dataset.child ? document.getElementById(current.dataset.child) : null
-                });
-                current = this.ExecuteWhile(current);
-                continue;
-            }
-
-            if (current.dataset.type === 'endwhile') {
-                this.LoopStack.pop();
-                current = this.GetNext(current);
-                continue;
-            }
-
-            this.Execute(current);
-            current = this.GetNext(current);
-        }
-
+        this.ExecuteBlock(root);
+        
         if (this.Error) {
             this.ShowError(this.Error);
             return;
         }
 
         this.ShowSuccessOutput();
+    }
+
+    ExecuteBlock(block) {
+        if (!block || this.Error) return;
+        
+        const type = block.dataset.type;
+        
+        if (this.ShouldSkipBlock(block)) {
+            this.ExecuteBlock(this.GetNext(block));
+            return;
+        }
+
+        this.Execute(block);
+        
+        if (this.Error) return;
+        
+        this.ExecuteBlock(this.GetNext(block));
+    }
+
+    ShouldSkipBlock(block) {
+        if (!block) return false;
+        
+        const type = block.dataset.type;
+        
+        if (this.SkipToElse) {
+            if (type === 'else') {
+                this.SkipToElse = false;
+                return false; 
+            }
+            if (type === 'endif') {
+                this.SkipToElse = false;
+                this.SkipToEndIf = false;
+                return true; 
+            }
+            return true; 
+        }
+        
+        if (this.SkipToEndIf) {
+            if (type === 'endif') {
+                this.SkipToEndIf = false;
+                return true; 
+            }
+            return true;
+        }
+        
+        if (this.SkipToEndElse) {
+            if (type === 'endelse') {
+                this.SkipToEndElse = false;
+                return true;
+            }
+            return true;
+        }
+        
+        return false;
     }
 
     ShowSuccessOutput() {
@@ -695,18 +707,6 @@ class BlockInterpreter {
         return null;
     }
 
-    GetAllBlocksInWhile(startBlock, endBlock) {
-        const blocks = [];
-        let current = startBlock.dataset.child ? document.getElementById(startBlock.dataset.child) : null;
-        
-        while (current && current !== endBlock) {
-            blocks.push(current);
-            current = this.GetNext(current);
-        }
-        
-        return blocks;
-    }
-
     EvaluatePrintValue(input) {
         if (!input) return '';
         
@@ -770,20 +770,10 @@ class BlockInterpreter {
 
             switch(type) {
                 case 'declare':
+                    this.ExecuteDeclare(name, value_input);
+                    break;
                 case 'set':
-                    if (name) {
-                        const expression = value_input ? value_input.value.trim() : '';
-                        
-                        if (expression) 
-                        {
-                            const value = this.EvaluateExpression(expression);
-                            this.Variables[name] = value;
-                        } 
-                        else 
-                        {
-                            this.Variables[name] = 0;
-                        }
-                    }
+                    this.ExecuteSet(name, value_input)
                     break;
 
                 case 'array':
@@ -799,12 +789,18 @@ class BlockInterpreter {
                 case 'if':
                     this.ExecuteIf(block);
                     break;
+
                 case 'endif':
-                    break;
                 case 'else':
-                    this.SkipToEndElse = true;
-                    break;
                 case 'endelse':
+                    break;
+
+                case 'while':
+                    this.ExecuteWhile(block);
+                    break;
+
+                case 'endwhile':
+                    this.LoopStack.pop();
                     break;
 
                 case 'plus':
@@ -818,6 +814,56 @@ class BlockInterpreter {
         }
         catch(error){
             this.Error = `Ошибка в блоке ${block.dataset.type}: ${error.message}`;
+        }
+    }
+
+    ExecuteSet(name, value_input)
+    {
+        if (!name) {
+            this.Error = 'Имя переменной не указано';
+            return;
+        }
+
+        if (!this.Variables.hasOwnProperty(name)){
+            this.Error = `Переменная ${name} не объявлена`;
+            return;
+        }
+
+        const expression = value_input ? value_input.value.trim() : '';
+            
+        if (expression) 
+        {
+            const value = this.EvaluateExpression(expression);
+            this.Variables[name] = value;
+        } 
+        else 
+        {
+            this.Error = `Недопустимое значение для переменной ${name}`;
+        }
+    }
+
+    ExecuteDeclare(name, value_input)
+    {
+        if (!name) {
+            this.Error = 'Имя переменной не указано';
+            return;
+        } 
+        
+        if (this.Variables.hasOwnProperty(name)){
+            this.Error = `Переменная "${name}" уже объявлена. Используйте блок "Установить" для изменения значения`;
+            return;
+        }
+
+        const expression = value_input ? value_input.value.trim() : '';
+        
+        if (expression) 
+        {
+            const value = this.EvaluateExpression(expression);
+            this.Variables[name] = value;
+        } 
+        else 
+        {
+            this.Variables[name] = 0;
         }
     }
 
@@ -914,6 +960,152 @@ class BlockInterpreter {
         }
     }
 
+    ExecuteIf(block) {
+        try {
+            const expressionInput = block.querySelector('.if-expression');
+            const expression = expressionInput ? expressionInput.value.trim() : "";
+
+            const result = this.EvaluateLogicalExpression(expression);
+
+            if (!result) {
+                let next = this.GetNext(block);
+                while (next) {
+                    if (next.dataset.type === 'else') {
+                        this.SkipToElse = true;
+                        this.SkipToEndIf = false;
+                        this.SkipToEndElse = false;
+                        break;
+                    }
+                    if (next.dataset.type === 'endif') {
+                        this.SkipToEndIf = true;
+                        this.SkipToElse = false;
+                        this.SkipToEndElse = false;
+                        break;
+                    }
+                    next = this.GetNext(next);
+                }
+            }
+        } 
+        catch(error) {
+            this.Error = `Ошибка в условии if: ${error.message}`;
+        }
+    }
+
+    ExecuteWhile(block) {
+        try {
+            const expressionInput = block.querySelector('.while-expression');
+            const expression = expressionInput ? expressionInput.value.trim() : "";
+            
+            const endWhile = this.FindMatchingEndWhile(block);
+            if (!endWhile) {
+                this.Error = "Не найден endwhile для цикла";
+                return;
+            }
+
+            const firstChild = block.dataset.child ? 
+                document.getElementById(block.dataset.child) : null;
+            
+            if (!firstChild) {
+                this.Error = "Тело цикла пусто";
+                return;
+            }
+
+            let iterations = 0;
+            
+            const loopInfo = {
+                startBlock: block,
+                endBlock: endWhile,
+                iterations: 0
+            };
+            
+            this.LoopStack.push(loopInfo);
+
+            while (!this.Error) {
+                const condition = this.EvaluateLogicalExpression(expression);
+                if (!condition) break;
+                
+                iterations++;
+                if (iterations > this.MaxIterations) {
+                    this.Error = 'Превышено максимальное количество итераций цикла (10000)';
+                    break;
+                }
+                
+                loopInfo.iterations = iterations;
+                
+                this.ExecuteBlockRange(firstChild, endWhile);
+                
+                if (this.Error) break;
+            }
+
+            this.LoopStack.pop();
+        }
+        catch(error) {
+            this.Error = `Ошибка в цикле while: ${error.message}`;
+        }
+    }
+
+    FindMatchingEndWhile(startBlock) {
+        let current = this.GetNext(startBlock);
+        let depth = 1;
+        let safetyCounter = 0;
+        const maxBlocks = 10000;
+        
+        while (current && safetyCounter < maxBlocks) {
+            safetyCounter++;
+            
+            if (current.dataset.type === 'while') {
+                depth++;
+            } else if (current.dataset.type === 'endwhile') {
+                depth--;
+                if (depth === 0) {
+                    return current;
+                }
+            }
+            current = this.GetNext(current);
+        }
+        
+        return null;
+    }
+
+    ExecuteBlockRange(startBlock, endBlock) {
+        let current = startBlock;
+        let safetyCounter = 0;
+        const maxBlocks = 10000;
+        
+        while (current && current !== endBlock && 
+            !this.Error && safetyCounter < maxBlocks) 
+        {
+            safetyCounter++;
+            
+            const nextBlock = this.GetNext(current);
+            
+            if (!this.ShouldSkipBlock(current)) {
+                this.Execute(current);
+            }
+            
+            if (this.Error) break;
+            
+            current = nextBlock;
+        }
+        
+        if (safetyCounter >= maxBlocks) {
+            this.Error = "Превышена максимальная длина последовательности блоков";
+        }
+    }
+
+    ResolveValue(input) {
+        if (!input) return '';
+        if (!isNaN(input)) return parseFloat(input);
+        if (this.Variables.hasOwnProperty(input)) return this.Variables[input];
+        
+        try {
+            return this.EvaluateExpression(input);
+        } 
+        catch {
+            return 0;
+        }   
+    }
+
     EvaluateExpression(expression) {
         if (!expression) return '';
 
@@ -937,17 +1129,21 @@ class BlockInterpreter {
                 (match, arrayName, indexExpr) => {
                 if (this.Arrays.hasOwnProperty(arrayName)) {
                     const index = this.EvaluateExpression(indexExpr);
+
                     if (index >= 0 && index < this.Arrays[arrayName].length) {
                         const value = this.Arrays[arrayName][index];
+
                         if (typeof value === 'string') {
                             return `"${value}"`;
                         }
                         return value;
-                    } else {
+                    }
+                    else {
                         this.Error = `Индекс ${index} вне границ массива ${arrayName}`;
                         return;
                     }
-                } else {
+                } 
+                else {
                     this.Error = `Массив ${arrayName} не объявлен`;
                 }
             });
@@ -957,8 +1153,10 @@ class BlockInterpreter {
                     if (typeof this.Variables[name] === 'string') {
                         return `"${this.Variables[name]}"`;
                     }
+
                     return this.Variables[name];
                 }
+
                 return name;
             });
             
@@ -976,36 +1174,6 @@ class BlockInterpreter {
             console.error("Ошибка в вычислении выражения", expression, error);
             return 0;
         }
-    }
-
-    ExecuteIf(block) {
-        try{
-            const expressionInput = block.querySelector('.if-expression');
-            const expression = expressionInput ? expressionInput.value.trim() : "";
-
-            const result = this.EvaluateLogicalExpression(expression);
-
-            if (!result) {
-                this.SkipToElse = true;
-                this.SkipToEndIf = true;
-            }
-        }
-        catch(error){
-            this.Error = `Ошибка в условии if: ${error.message}`;
-        }
-    } 
-
-    ResolveValue(input) {
-        if (!input) return '';
-        if (!isNaN(input)) return parseFloat(input);
-        if (this.Variables.hasOwnProperty(input)) return this.Variables[input];
-        
-        try {
-            return this.EvaluateExpression(input);
-        } 
-        catch {
-            return 0;
-        }   
     }
 
     EvaluateLogicalExpression(expression) 
@@ -1113,94 +1281,6 @@ class BlockInterpreter {
         if (leftInput && this.Variables.hasOwnProperty(leftInput)) {
             this.Variables[leftInput] = result;
         }
-    }
-
-    ExecuteWhile(block) {
-        try{
-            const startBlock = block;
-            const endBlock = this.FindEndWhile(startBlock);
-            if (!endBlock) return this.GetNext(block); 
-
-            let iterations = 0;
-            const MAX_ITERATIONS = 10000;
-
-            while (this.EvaluateWhileCondition(startBlock) && iterations < MAX_ITERATIONS && !this.Error) {
-                this.SkipToElse = false;
-                this.SkipToEndElse = false;
-
-                let current = startBlock.dataset.child ? 
-                    document.getElementById(startBlock.dataset.child) : 
-                    this.GetNext(startBlock);
-
-                while (current && current !== endBlock && !this.Error) {
-                    if (this.SkipToElse) {
-                        if (current.dataset.type === 'else' || current.dataset.type === 'endif') {
-                            this.SkipToElse = false;
-                        }
-                        current = this.GetNext(current);
-                        continue;
-                    }
-
-                    if (this.SkipToEndElse) {
-                        if (current.dataset.type === 'endelse') {
-                            this.SkipToEndElse = false;
-                        }
-                        current = this.GetNext(current);
-                        continue;
-                    }
-
-                    this.Execute(current);
-                    
-                    if (this.SkipToElse || this.SkipToEndElse) {
-                        current = this.GetNext(current);
-                        continue;
-                    }
-
-                    if (this.Error) break;
-                
-                    current = this.GetNext(current);
-                }
-                
-                iterations++;
-            }
-
-            if (iterations > MAX_ITERATIONS){
-                this.Error = 'Превышено максимальное количество итераций цикла (10000)';
-            }
-
-            return this.GetNext(endBlock);
-        }
-        catch(error){
-            this.Error = `Ошибка в цикле while: ${error.message}`;
-            return this.GetNext(block);
-        }
-    }
-
-    FindEndWhile(startBlock) {
-        let current = this.GetNext(startBlock);
-        let depth = 1;
-        while (current) {
-            if (current.dataset.type === 'while') {
-                depth++;
-            }
-
-            else if (current.dataset.type === 'endwhile') {
-                depth--;
-                if (depth === 0) {
-                    return current;
-                }
-            }
-            
-            current = this.GetNext(current);
-        }
-        return null;
-    }
-
-    EvaluateWhileCondition(block) {
-        const expressionInput = block.querySelector('.while-expression');
-        const expression = expressionInput ? expressionInput.value.trim() : "";
-
-        return this.EvaluateLogicalExpression(expression);
     }
 }
 

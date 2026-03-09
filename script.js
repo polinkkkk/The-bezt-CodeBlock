@@ -486,10 +486,13 @@ class BlockInterpreter {
         this.SkipToEndElse = false;
         this.Error = null;
         this.MaxIterations = 10000;
+        this.Functions = {};
+        this.ReturnStack = [];
     }
 
     Run() {
         this.LastValue = undefined; 
+        this.ScanFunctions();
         this.Variables = {};
         this.Arrays = {};
         this.LoopStack = [];
@@ -535,21 +538,28 @@ class BlockInterpreter {
     }
 
     ExecuteBlock(block) {
-        if (!block || this.Error) return;
-        
-        const type = block.dataset.type;
-        
-        if (this.ShouldSkipBlock(block)) {
-            this.ExecuteBlock(this.GetNext(block));
-            return;
-        }
+    if (!block || this.Error) return;
 
-        this.Execute(block);
-        
-        if (this.Error) return;
-        
+    const type = block.dataset.type;
+
+    if (this.ShouldSkipBlock(block)) {
         this.ExecuteBlock(this.GetNext(block));
+        return;
     }
+
+    this.Execute(block);
+
+    if (this.Error) return;
+
+    if (this.NextAfterLoop) {
+        const next = this.NextAfterLoop;
+        this.NextAfterLoop = null;
+        this.ExecuteBlock(next);
+        return;
+    }
+
+    this.ExecuteBlock(this.GetNext(block));
+}
 
     ShouldSkipBlock(block) {
         if (!block) return false;
@@ -584,6 +594,17 @@ class BlockInterpreter {
             }
             return true;
         }
+        if (type === "function") {
+            this.SkipToEndFunction = true;
+            return true;
+        }
+
+        if (this.SkipToEndFunction) {
+             if (type === "endfunction") {
+                this.SkipToEndFunction = false;
+            }
+    return true;
+}
         
         return false;
     }
@@ -810,6 +831,9 @@ class BlockInterpreter {
                 case 'remains':
                     this.ExecuteArithmetic(block, type);
                     break;
+                case 'call':
+                    this.ExecuteCall(block);
+                    break;
             }
         }
         catch(error){
@@ -992,57 +1016,45 @@ class BlockInterpreter {
     }
 
     ExecuteWhile(block) {
-        try {
-            const expressionInput = block.querySelector('.while-expression');
-            const expression = expressionInput ? expressionInput.value.trim() : "";
-            
-            const endWhile = this.FindMatchingEndWhile(block);
-            if (!endWhile) {
-                this.Error = "Не найден endwhile для цикла";
-                return;
-            }
+    try {
+        const expressionInput = block.querySelector('.while-expression');
+        const expression = expressionInput ? expressionInput.value.trim() : "";
 
-            const firstChild = block.dataset.child ? 
-                document.getElementById(block.dataset.child) : null;
-            
-            if (!firstChild) {
-                this.Error = "Тело цикла пусто";
-                return;
-            }
-
-            let iterations = 0;
-            
-            const loopInfo = {
-                startBlock: block,
-                endBlock: endWhile,
-                iterations: 0
-            };
-            
-            this.LoopStack.push(loopInfo);
-
-            while (!this.Error) {
-                const condition = this.EvaluateLogicalExpression(expression);
-                if (!condition) break;
-                
-                iterations++;
-                if (iterations > this.MaxIterations) {
-                    this.Error = 'Превышено максимальное количество итераций цикла (10000)';
-                    break;
-                }
-                
-                loopInfo.iterations = iterations;
-                
-                this.ExecuteBlockRange(firstChild, endWhile);
-                
-                if (this.Error) break;
-            }
-
-            this.LoopStack.pop();
+        const endWhile = this.FindMatchingEndWhile(block);
+        if (!endWhile) {
+            this.Error = "Не найден endwhile для цикла";
+            return;
         }
-        catch(error) {
-            this.Error = `Ошибка в цикле while: ${error.message}`;
+
+        const firstChild = block.dataset.child
+            ? document.getElementById(block.dataset.child)
+            : null;
+
+        if (!firstChild) {
+            this.Error = "Тело цикла пусто";
+            return;
         }
+
+        let iterations = 0;
+
+        while (!this.Error && this.EvaluateLogicalExpression(expression)) {
+
+            iterations++;
+
+            if (iterations > this.MaxIterations) {
+                this.Error = "Превышено максимальное количество итераций";
+                break;
+            }
+
+            this.ExecuteBlockRange(firstChild, endWhile);
+        }
+
+        this.NextAfterLoop = this.GetNext(endWhile);
+
+    } catch (error) {
+        this.Error = `Ошибка в цикле while: ${error.message}`;
     }
+}
 
     FindMatchingEndWhile(startBlock) {
         let current = this.GetNext(startBlock);
@@ -1282,6 +1294,75 @@ class BlockInterpreter {
             this.Variables[leftInput] = result;
         }
     }
+    ScanFunctions() {
+
+    const blocks = document.querySelectorAll('#WorkspaceArea .block');
+
+    blocks.forEach(block => {
+
+        if (block.dataset.type === "function") {
+
+            const nameInput = block.querySelector(".func-name");
+
+            if (!nameInput) return;
+
+            const name = nameInput.value.trim();
+
+            if (!name) return;
+
+            const end = this.FindMatchingEndFunction(block);
+
+            if (!end) {
+                this.Error = `Функция ${name} не имеет endfunction`;
+                return;
+            }
+
+            this.Functions[name] = {
+                start: block,
+                end: end
+            };
+        }
+
+    });
+}
+FindMatchingEndFunction(startBlock) {
+
+    let current = this.GetNext(startBlock);
+
+    while (current) {
+
+        if (current.dataset.type === "endfunction") {
+            return current;
+        }
+
+        current = this.GetNext(current);
+    }
+
+    return null;
+}
+ExecuteCall(block) {
+
+    const input = block.querySelector(".func-name");
+
+    if (!input) return;
+
+    const name = input.value.trim();
+
+    if (!this.Functions[name]) {
+        this.Error = `Функция ${name} не объявлена`;
+        return;
+    }
+
+    const func = this.Functions[name];
+
+    const first = func.start.dataset.child
+        ? document.getElementById(func.start.dataset.child)
+        : null;
+
+    if (!first) return;
+
+    this.ExecuteBlockRange(first, func.end);
+}
 }
 
 const tabs = document.querySelectorAll(".tab");

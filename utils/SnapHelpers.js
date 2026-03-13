@@ -7,17 +7,17 @@ export class SnapHelpers {
 
     findClosestBlock(block, allBlocks, workspaceArea) {
         const rect1 = block.getBoundingClientRect();
-        const workspaceRect = workspaceArea.getBoundingClientRect();
-        const scrollLeft = workspaceArea.scrollLeft;
-        const scrollTop = workspaceArea.scrollTop;
+        const { left: workspaceLeft, top: workspaceTop } = workspaceArea.getBoundingClientRect();
+        const { scrollLeft, scrollTop } = workspaceArea;
 
         let closest = null;
         let minDist = this.snapDistance;
         let snapType = null;
 
         const isHorizontal = this.isHorizontalBlock(block);
+        const blocksArray = [...allBlocks];
 
-        for (let other of allBlocks) {
+        for (const other of blocksArray) {
             const rect2 = other.getBoundingClientRect();
             const otherHorizontal = this.isHorizontalBlock(other);
 
@@ -48,27 +48,27 @@ export class SnapHelpers {
     }
 
     isHorizontalBlock(block) {
-        return block.classList.contains('ariphm') || 
-               block.classList.contains('block-bracket') ||
-               ARITHMETIC_BLOCKS.includes(block.dataset.type);
+        const { classList, dataset: { type } } = block;
+        return classList.contains('ariphm') || 
+               classList.contains('block-bracket') ||
+               ARITHMETIC_BLOCKS.includes(type);
     }
 
     calculateSnapPosition(block, targetBlock, snapType, workspaceArea) {
-        const targetRect = targetBlock.getBoundingClientRect();
-        const workspaceRect = workspaceArea.getBoundingClientRect();
-        const scrollLeft = workspaceArea.scrollLeft;
-        const scrollTop = workspaceArea.scrollTop;
+        const { right, top, left, bottom } = targetBlock.getBoundingClientRect();
+        const { left: workspaceLeft, top: workspaceTop } = workspaceArea.getBoundingClientRect();
+        const { scrollLeft, scrollTop } = workspaceArea;
 
         if (snapType === "horizontal") {
             return {
-                left: targetRect.right - workspaceRect.left + scrollLeft,
-                top: targetRect.top - workspaceRect.top + scrollTop
-            };
-        } else {
-            return {
-                left: targetRect.left - workspaceRect.left + scrollLeft,
-                top: targetRect.bottom - workspaceRect.top + scrollTop
+                left: right - workspaceLeft + scrollLeft,
+                top: top - workspaceTop + scrollTop
             };
         }
+
+        return {
+            left: left - workspaceLeft + scrollLeft,
+            top: bottom - workspaceTop + scrollTop
+        };
     }
 }

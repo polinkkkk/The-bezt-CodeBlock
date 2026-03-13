@@ -23,46 +23,50 @@ export class BlockConnector {
             const connectedId = block.dataset[attr];
             if (connectedId) {
                 const connected = document.getElementById(connectedId);
-                if (connected) connected.dataset[opposite] = "";
+                if (connected) {
+                    connected.dataset[opposite] = "";
+                }
                 block.dataset[attr] = "";
             }
         });
     }
 
     clearConnections(block) {
-        block.dataset.parent = "";
-        block.dataset.child = "";
-        block.dataset.left = "";
-        block.dataset.right = "";
+        const connectionAttrs = ['parent', 'child', 'left', 'right'];
+        connectionAttrs.forEach(attr => {
+            block.dataset[attr] = "";
+        });
     }
 
     getNextBlock(block) {
         if (!block) return null;
 
-        if (block.dataset.right) {
-            const right = document.getElementById(block.dataset.right);
-            if (right) return right;
+        const { right, child, parent } = block.dataset;
+
+        if (right) {
+            const rightBlock = document.getElementById(right);
+            if (rightBlock) return rightBlock;
         }
 
-        if (block.dataset.child) {
-            const child = document.getElementById(block.dataset.child);
-            if (child) return child;
+        if (child) {
+            const childBlock = document.getElementById(child);
+            if (childBlock) return childBlock;
         }
 
         let current = block;
-        while (current.dataset.parent) {
-            const parent = document.getElementById(current.dataset.parent);
-            if (parent && parent.dataset.right) {
-                const right = document.getElementById(parent.dataset.right);
-                if (right) return right;
+        while (current?.dataset.parent) {
+            const parentBlock = document.getElementById(current.dataset.parent);
+            if (parentBlock?.dataset.right) {
+                const rightBlock = document.getElementById(parentBlock.dataset.right);
+                if (rightBlock) return rightBlock;
             }
-            current = parent;
+            current = parentBlock;
         }
 
         return null;
     }
 
     findRootBlock(blocks) {
-        return Array.from(blocks).find(block => !block.dataset.parent || block.dataset.parent === "");
+        return blocks.find(({ dataset: { parent } }) => !parent);
     }
 }

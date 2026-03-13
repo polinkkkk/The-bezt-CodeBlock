@@ -1,20 +1,16 @@
 export class OutputFormatter {
     formatSuccess(output) {
-        if (output.length === 0) {
+        const outputArray = [...output];
+        
+        if (outputArray.length === 0) {
             return `
                 <strong>✅ Выполнено успешно!</strong><br><br>
                 <span>Вывод отсутствует</span>`;
         }
 
-        const formattedOutput = output.map(value => {
-            if (value === undefined) return '<span>undefined</span>';
-            if (value === null) return '<span>null</span>';
-            if (typeof value === 'string') return `<span>"${this.escapeHtml(value)}"</span>`;
-            if (typeof value === 'number') return `<span>${value}</span>`;
-            if (typeof value === 'boolean') return `<span>${value}</span>`;
-            if (Array.isArray(value)) return `<span>${this.formatArray(value)}</span>`;
-            return this.escapeHtml(String(value));
-        }).join('<br>');
+        const formattedOutput = outputArray
+            .map(value => this.formatValue(value))
+            .join('<br>');
 
         return `
             <strong>✅ Выполнено успешно!</strong><br><br>
@@ -27,8 +23,28 @@ export class OutputFormatter {
         `;
     }
 
+    formatValue(value) {
+        const typeHandlers = {
+            'undefined': () => '<span>undefined</span>',
+            'object': () => {
+                if (value === null) return '<span>null</span>';
+                if (Array.isArray(value)) return `<span>${this.formatArray(value)}</span>`;
+                return this.escapeHtml(String(value));
+            },
+            'string': () => `<span>"${this.escapeHtml(value)}"</span>`,
+            'number': () => `<span>${value}</span>`,
+            'boolean': () => `<span>${value}</span>`
+        };
+
+        const handler = typeHandlers[typeof value];
+        return handler ? handler() : this.escapeHtml(String(value));
+    }
+
     formatError(message, variables, arrays) {
-        const varsHtml = this.formatVariablesForError(variables, arrays);
+        const varsHtml = this.formatVariablesForError(
+            { ...variables }, 
+            { ...arrays }
+        );
 
         return `
             <strong>❌ Ошибка выполнения!</strong><br><br>
@@ -43,8 +59,6 @@ export class OutputFormatter {
 
     formatVariablesForError(variables, arrays) {
         try {
-            let result = [];
-
             const vars = Object.entries(variables)
                 .map(([name, value]) => {
                     const valueStr = typeof value === 'string' ? `"${value}"` : String(value);
@@ -53,12 +67,15 @@ export class OutputFormatter {
 
             const arraysFormatted = Object.entries(arrays)
                 .map(([name, array]) => {
-                    return `<code>${name} = [${array.join(', ')}]</code>`;
+                    const arrayStr = `[${array.join(', ')}]`;
+                    return `<code>${name} = ${arrayStr}</code>`;
                 });
 
-            result = [...vars, ...arraysFormatted];
+            const allEntries = [...vars, ...arraysFormatted];
 
-            return result.join(', ') || '<code>Нет переменных</code>';
+            return allEntries.length > 0 
+                ? allEntries.join(', ')
+                : '<code>Нет переменных</code>';
         } catch {
             return '<code>Не удалось отобразить переменные</code>';
         }
@@ -66,7 +83,7 @@ export class OutputFormatter {
 
     formatArray(arr) {
         try {
-            const items = arr.map(item => {
+            const items = [...arr].map(item => {
                 if (typeof item === 'string') return `"${item}"`;
                 return String(item);
             }).join(', ');

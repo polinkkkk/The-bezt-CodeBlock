@@ -40,3 +40,7 @@ export const LOOP_BLOCKS = [
     BLOCK_TYPES.WHILE,
     BLOCK_TYPES.ENDWHILE
 ];
+
+export const ALL_BLOCK_TYPES = [
+    ...Object.values(BLOCK_TYPES)
+];

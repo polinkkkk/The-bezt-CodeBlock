@@ -2,11 +2,8 @@ import { WorkspaceManager } from './WorkspaceManager.js';
 
 export class BlockDeleter {
     constructor() {
-        this.workspaceManager = new WorkspaceManager(
-            document.getElementById('WorkspaceArea'),
-            100,
-            400
-        );
+        const workspaceArea = document.getElementById('WorkspaceArea');
+        this.workspaceManager = new WorkspaceManager(workspaceArea, 100, 400);
         this.init();
     }
 
@@ -19,6 +16,7 @@ export class BlockDeleter {
 
     clearWorkspace() {
         this.workspaceManager.clearWorkspace();
-        document.getElementById('output').innerHTML = '🧹 Рабочая область очищена!';
+        const output = document.getElementById('output');
+        output.innerHTML = '🧹 Рабочая область очищена!';
     }
 }

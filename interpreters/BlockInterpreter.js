@@ -13,6 +13,7 @@ export class BlockInterpreter {
         this.skipToEndIf = false;
         this.skipToElse = false;
         this.skipToEndElse = false;
+        this.skipToEndFor = false;
         this.error = null;
         this.maxIterations = 10000;
         this.functions = {};
@@ -59,6 +60,7 @@ export class BlockInterpreter {
         this.skipToElse = false;
         this.skipToEndElse = false;
         this.skipToEndIf = false;
+        this.skipToEndFor = false;
         this.error = null;
         this.nextAfterLoop = null;
         this.skipToEndFunction = false;
@@ -117,6 +119,14 @@ export class BlockInterpreter {
         if (this.skipToEndElse) {
             if (type === BLOCK_TYPES.ENDELSE) {
                 this.skipToEndElse = false;
+                return true;
+            }
+            return true;
+        }
+
+        if (this.skipToEndFor) {
+            if (type === 'endfor') {
+                this.skipToEndFor = false;
                 return true;
             }
             return true;
@@ -183,6 +193,11 @@ export class BlockInterpreter {
                     break;
                 case BLOCK_TYPES.ENDWHILE:
                     this.loopStack.pop();
+                    break;
+                case BLOCK_TYPES.FOR:
+                    this.executeFor(block);
+                    break;
+                case BLOCK_TYPES.ENDFOR:
                     break;
                 case BLOCK_TYPES.CALL:
                     this.executeCall(block);
@@ -449,6 +464,124 @@ export class BlockInterpreter {
         if (safetyCounter >= maxBlocks) {
             this.error = "Превышена максимальная длина последовательности блоков";
         }
+    }
+
+    executeFor(block) {
+        try {
+            const initInput = block.querySelector('.for-init');
+            const conditionInput = block.querySelector('.for-condition');
+            const incrementInput = block.querySelector('.for-increment');
+
+            const init = initInput ? initInput.value.trim() : '';
+            const condition = conditionInput ? conditionInput.value.trim() : 'true';
+            const increment = incrementInput ? incrementInput.value.trim() : '';
+
+            const endFor = this.findMatchingEndFor(block);
+            if (!endFor) {
+                this.error = "Не найден endfor для цикла";
+                return;
+            }
+
+            const firstChild = block.dataset.child
+                ? document.getElementById(block.dataset.child)
+                : null;
+
+            if (!firstChild) {
+                this.error = "Тело цикла пусто";
+                return;
+            }
+
+            if (init) {
+                this.ExecuteInitialization(init);
+            }
+
+            let iterations = 0;
+
+            while (!this.Error && this.evaluateLogicalExpression(condition)) {
+                iterations++;
+
+                if (iterations > this.maxIterations) {
+                    this.error = "Превышено максимальное количество итераций";
+                    break;
+                }
+
+                this.executeBlockRange(firstChild, endFor);
+
+                if (increment && !this.error) {
+                    this.executeIncrement(increment);
+                }
+            }
+
+            this.nextAfterLoop = this.getNextBlock(endFor);
+
+        } catch (error) {
+            this.error = `Ошибка в цикле for: ${error.message}`;
+        }
+    }
+
+    executeIncrement(increment) {
+        const incrementMatch = increment.match(/^([a-zA-Z_][a-zA-Z0-9_]*)\s*(\+\+|--)$/);
+        if (incrementMatch) {
+            const varName = incrementMatch[1];
+            const op = incrementMatch[2];
+            if (this.variables.hasOwnProperty(varName)) {
+                if (op === '++') {
+                    this.variables[varName]++;
+                } else if (op === '--') {
+                    this.variables[varName]--;
+                }
+            }
+            return;
+        }
+
+        const compoundMatch = increment.match(/^([a-zA-Z_][a-zA-Z0-9_]*)\s*([\+\-\*\/])=\s*(.+)$/);
+        if (compoundMatch) {
+            const varName = compoundMatch[1];
+            const op = compoundMatch[2];
+            const valueExpr = compoundMatch[3];
+            if (this.variables.hasOwnProperty(varName)) {
+                const currentValue = this.variables[varName];
+                const value = this.evaluateExpression(valueExpr);
+                switch(op) {
+                    case '+': this.variables[varName] = currentValue + value; break;
+                    case '-': this.variables[varName] = currentValue - value; break;
+                    case '*': this.variables[varName] = currentValue * value; break;
+                    case '/': this.variables[varName] = currentValue / value; break;
+                }
+            }
+            return;
+        }
+
+        const assignMatch = increment.match(/^([a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*(.+)$/);
+        if (assignMatch) {
+            const varName = assignMatch[1];
+            const valueExpr = assignMatch[2];
+            const value = this.evaluateExpression(valueExpr);
+            this.variables[varName] = value;
+        }
+    }
+
+    findMatchingEndFor(startBlock) {
+        let current = this.GetNext(startBlock);
+        let depth = 1;
+        let safetyCounter = 0;
+        const maxBlocks = 10000;
+        
+        while (current && safetyCounter < maxBlocks) {
+            safetyCounter++;
+            
+            if (current.dataset.type === 'for') {
+                depth++;
+            } else if (current.dataset.type === 'endfor') {
+                depth--;
+                if (depth === 0) {
+                    return current;
+                }
+            }
+            current = this.getNextBlock(current);
+        }
+        
+        return null;
     }
 
     executeArithmetic(block, type) {

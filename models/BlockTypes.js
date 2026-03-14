@@ -11,6 +11,8 @@ export const BLOCK_TYPES = {
     ENDELSE: 'endelse',
     WHILE: 'while',
     ENDWHILE: 'endwhile',
+    FOR: 'for',
+    ENDFOR: 'endfor',
     PLUS: 'plus',
     MINUS: 'minus',
     PROD: 'prod',

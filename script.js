@@ -470,7 +470,7 @@ class BlockDeleter
             drag_manager.ShrinkWorkspaceIfNeeded();
         }
         
-        document.getElementById('output').innerHTML = '🧹 Рабочая область очищена!';
+        document.getElementById('output').innerHTML = '🧹 Рабочая область очищена!';    
     }
 }
 

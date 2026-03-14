@@ -5,14 +5,16 @@ import { WorkspaceManager } from './WorkspaceManager.js';
 
 export class DragAndDropManager {
     constructor() {
-        this.draggingNowElement = null;
-        this.originalElement = null;
-        this.isDragging = false;
-        this.offsetX = 0;
-        this.offsetY = 0;
-        this.currentX = 0;
-        this.currentY = 0;
-        
+        ({
+            draggingNowElement: this.draggingNowElement = null,
+            originalElement: this.originalElement = null,
+            isDragging: this.isDragging = false,
+            offsetX: this.offsetX = 0,
+            offsetY: this.offsetY = 0,
+            currentX: this.currentX = 0,
+            currentY: this.currentY = 0
+        } = {});
+
         this.paddingBuffer = 100;
         this.defaultWorkspaceSize = 400;
 
@@ -21,7 +23,11 @@ export class DragAndDropManager {
         
         this.snapHelpers = new SnapHelpers(40);
         this.blockConnector = new BlockConnector();
-        this.workspaceManager = new WorkspaceManager(this.workspaceArea, this.paddingBuffer, this.defaultWorkspaceSize);
+        this.workspaceManager = new WorkspaceManager(
+            this.workspaceArea, 
+            this.paddingBuffer, 
+            this.defaultWorkspaceSize
+        );
         
         this.init();
     }
@@ -33,7 +39,7 @@ export class DragAndDropManager {
     }
 
     makeBlocksDraggable() {
-        const blocks = document.querySelectorAll('.block, .block-bracket');
+        const blocks = [...document.querySelectorAll('.block, .block-bracket')];
         blocks.forEach(block => {
             this.blockConnector.clearConnections(block);
             block.addEventListener('mousedown', this.onMouseDown.bind(this));
@@ -52,12 +58,16 @@ export class DragAndDropManager {
         event.preventDefault();
         event.stopPropagation();
 
-        this.isDragging = true;
-        this.originalElement = block;
+        ({
+            isDragging: this.isDragging = true,
+            originalElement: this.originalElement = block
+        } = {});
 
         const rect = block.getBoundingClientRect();
-        this.offsetX = event.clientX - rect.left;
-        this.offsetY = event.clientY - rect.top;
+        ({
+            offsetX: this.offsetX = event.clientX - rect.left,
+            offsetY: this.offsetY = event.clientY - rect.top
+        } = {});
 
         if (!this.workspaceArea.contains(block)) {
             this.draggingNowElement = DragHelpers.cloneBlock(block);
@@ -68,8 +78,12 @@ export class DragAndDropManager {
             
             const workspaceRect = this.workspaceArea.getBoundingClientRect();
             this.draggingNowElement = block;
-            this.draggingNowElement.style.left = (rect.left - workspaceRect.left + this.workspaceArea.scrollLeft) + 'px';
-            this.draggingNowElement.style.top = (rect.top - workspaceRect.top + this.workspaceArea.scrollTop) + 'px';
+            
+            const newLeft = rect.left - workspaceRect.left + this.workspaceArea.scrollLeft;
+            const newTop = rect.top - workspaceRect.top + this.workspaceArea.scrollTop;
+            
+            this.draggingNowElement.style.left = `${newLeft}px`;
+            this.draggingNowElement.style.top = `${newTop}px`;
             this.draggingNowElement.style.position = 'absolute';
         }
 
@@ -80,8 +94,10 @@ export class DragAndDropManager {
     onMouseMove(event) {
         if (!this.isDragging) return;
 
-        this.currentX = event.clientX;
-        this.currentY = event.clientY;
+        ({
+            currentX: this.currentX = event.clientX,
+            currentY: this.currentY = event.clientY
+        } = {});
 
         requestAnimationFrame(() => {
             this.moveAt(this.currentX, this.currentY);
@@ -92,13 +108,13 @@ export class DragAndDropManager {
         if (!this.draggingNowElement) return;
 
         const isFixed = this.draggingNowElement.style.position === 'fixed';
-        const pos = DragHelpers.calculatePosition(
+        const { left, top } = DragHelpers.calculatePosition(
             this.draggingNowElement, x, y, this.offsetX, this.offsetY, 
             this.workspaceArea, isFixed
         );
 
-        this.draggingNowElement.style.left = pos.left + 'px';
-        this.draggingNowElement.style.top = pos.top + 'px';
+        this.draggingNowElement.style.left = `${left}px`;
+        this.draggingNowElement.style.top = `${top}px`;
     }
 
     onMouseUp(event) {
@@ -109,7 +125,9 @@ export class DragAndDropManager {
         }
 
         const workspaceRect = this.workspaceArea.getBoundingClientRect();
-        const insideWorkspace = DragHelpers.isInsideWorkspace(event.clientX, event.clientY, workspaceRect);
+        const insideWorkspace = DragHelpers.isInsideWorkspace(
+            event.clientX, event.clientY, workspaceRect
+        );
 
         if (insideWorkspace) {
             this.dropInsideWorkspace(event);
@@ -123,27 +141,27 @@ export class DragAndDropManager {
     }
 
     trySnap(block) {
-        const blocks = Array.from(this.workspaceArea.querySelectorAll('.block, .block-bracket'))
+        const blocks = [...this.workspaceArea.querySelectorAll('.block, .block-bracket')]
             .filter(b => b !== block);
 
         const snapResult = this.snapHelpers.findClosestBlock(block, blocks, this.workspaceArea);
         
         if (snapResult) {
-            const pos = this.snapHelpers.calculateSnapPosition(
-                block, snapResult.block, snapResult.type, this.workspaceArea
+            const { block: targetBlock, type } = snapResult;
+            const { left, top } = this.snapHelpers.calculateSnapPosition(
+                block, targetBlock, type, this.workspaceArea
             );
 
-            block.style.left = pos.left + 'px';
-            block.style.top = pos.top + 'px';
+            block.style.left = `${left}px`;
+            block.style.top = `${top}px`;
 
-            this.blockConnector.connectBlocks(snapResult.block, block, snapResult.type);
+            this.blockConnector.connectBlocks(targetBlock, block, type);
         }
     }
 
     dropInsideWorkspace(event) {
         const workspaceRect = this.workspaceArea.getBoundingClientRect();
-        const scrollLeft = this.workspaceArea.scrollLeft;
-        const scrollTop = this.workspaceArea.scrollTop;
+        const { scrollLeft, scrollTop } = this.workspaceArea;
 
         const newTop = event.clientY - workspaceRect.top - this.offsetY + scrollTop;
         const newLeft = event.clientX - workspaceRect.left - this.offsetX + scrollLeft;
@@ -154,14 +172,14 @@ export class DragAndDropManager {
             this.workspaceArea.appendChild(this.draggingNowElement);
 
             if (!this.draggingNowElement.id) {
-                this.draggingNowElement.id = "block-" + Date.now();
+                this.draggingNowElement.id = `block-${Date.now()}`;
             }
 
             this.draggingNowElement.addEventListener('mousedown', this.onMouseDown.bind(this));
         }
 
-        this.draggingNowElement.style.left = newLeft + 'px';
-        this.draggingNowElement.style.top = newTop + 'px';
+        this.draggingNowElement.style.left = `${newLeft}px`;
+        this.draggingNowElement.style.top = `${newTop}px`;
 
         this.workspaceManager.expandIfNeeded(newLeft, newTop, this.draggingNowElement);
         this.draggingNowElement.classList.remove('dragging');
@@ -174,9 +192,11 @@ export class DragAndDropManager {
     }
 
     cleanUp() {
-        this.isDragging = false;
-        this.draggingNowElement = null;
-        this.originalElement = null;
+        ({
+            isDragging: this.isDragging = false,
+            draggingNowElement: this.draggingNowElement = null,
+            originalElement: this.originalElement = null
+        } = {});
     }
 
     addDocumentListeners() {

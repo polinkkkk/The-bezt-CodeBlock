@@ -24,6 +24,26 @@ export class BlockInterpreter {
         this.evaluator = new ExpressionEvaluator(this);
         this.blockConnector = new BlockConnector();
         this.outputFormatter = new OutputFormatter();
+        this.maxIterations = 10000;
+        this.reset();
+    }
+
+    reset() {
+        ({
+            variables: this.variables = {},
+            arrays: this.arrays = {},
+            loopStack: this.loopStack = [],
+            output: this.output = [],
+            lastValue: this.lastValue = undefined,
+            skipToEndIf: this.skipToEndIf = false,
+            skipToElse: this.skipToElse = false,
+            skipToEndElse: this.skipToEndElse = false,
+            error: this.error = null,
+            functions: this.functions = {},
+            returnStack: this.returnStack = [],
+            nextAfterLoop: this.nextAfterLoop = null,
+            skipToEndFunction: this.skipToEndFunction = false
+        } = {});
     }
 
     run() {
@@ -31,23 +51,23 @@ export class BlockInterpreter {
         this.scanFunctions();
 
         const blocks = document.querySelectorAll('#WorkspaceArea .block, #WorkspaceArea .block-bracket');
+        const blocksArray = [...blocks];
 
-        if (blocks.length === 0) {
+        if (blocksArray.length === 0) {
             document.getElementById('output').innerHTML = '❌ Добавь блоки в рабочую область!';
             return;
         }
 
-        if (blocks.length === 1) {
-            this.executeBlock(blocks[0]);
-        } else {
-            const root = this.blockConnector.findRootBlock(blocks);
-            if (!root) {
-                document.getElementById('output').innerHTML = '❌ Не удалось найти начало программы!';
-                return;
-            }
-            this.executeBlock(root);
+        const root = blocksArray.length === 1 
+            ? blocksArray[0] 
+            : this.blockConnector.findRootBlock(blocksArray);
+
+        if (!root) {
+            document.getElementById('output').innerHTML = '❌ Не удалось найти начало программы!';
+            return;
         }
 
+        this.executeBlock(root);
         this.showOutput();
     }
 
@@ -68,8 +88,6 @@ export class BlockInterpreter {
 
     executeBlock(block) {
         if (!block || this.error) return;
-
-        const type = block.dataset.type;
 
         if (this.shouldSkipBlock(block)) {
             this.executeBlock(this.blockConnector.getNextBlock(block));
@@ -93,23 +111,19 @@ export class BlockInterpreter {
     shouldSkipBlock(block) {
         if (!block) return false;
         
-        const type = block.dataset.type;
+        const { type } = block.dataset;
         
-        if (this.skipToElse) {
-            if (type === BLOCK_TYPES.ELSE) {
+        const skipStates = [
+            { flag: 'skipToElse', target: BLOCK_TYPES.ELSE, onMatch: () => {
                 this.skipToElse = false;
                 return false;
-            }
-            if (type === BLOCK_TYPES.ENDIF) {
+            }, onContinue: true },
+            { flag: 'skipToElse', target: BLOCK_TYPES.ENDIF, onMatch: () => {
                 this.skipToElse = false;
                 this.skipToEndIf = false;
                 return true;
-            }
-            return true;
-        }
-        
-        if (this.skipToEndIf) {
-            if (type === BLOCK_TYPES.ENDIF) {
+            }, onContinue: true },
+            { flag: 'skipToEndIf', target: BLOCK_TYPES.ENDIF, onMatch: () => {
                 this.skipToEndIf = false;
                 return true;
             }
@@ -149,19 +163,16 @@ export class BlockInterpreter {
 
     execute(block) {
         try {
-            const type = block.dataset.type;
-            const nameInput = block.querySelector('.var-name, .name, .func-name');
-            const valueInput = block.querySelector('.var-value, .value, .if-expression, .while-expression, .index, .size');
+            const { type } = block.dataset;
+            const [nameInput, valueInput] = [
+                block.querySelector('.var-name, .name, .func-name'),
+                block.querySelector('.var-value, .value, .if-expression, .while-expression, .index, .size')
+            ];
             
-            const name = nameInput ? nameInput.value.trim() : '';
+            const name = nameInput?.value.trim() ?? '';
 
             if (type === BLOCK_TYPES.PRINT) {
-                if (name) {
-                    const value = this.evaluator.evaluatePrintValue(name);
-                    this.output.push(value);
-                } else {
-                    this.output.push('');
-                }
+                this.output.push(name ? this.evaluator.evaluatePrintValue(name) : '');
                 return;
             }
 
@@ -221,19 +232,18 @@ export class BlockInterpreter {
             return;
         }
 
-        if (this.variables.hasOwnProperty(name)) {
+        if (name in this.variables) {
             this.error = `Переменная "${name}" уже объявлена. Используйте блок "Установить" для изменения значения`;
             return;
         }
 
-        const expression = valueInput ? valueInput.value.trim() : '';
+        const expression = valueInput?.value.trim() ?? '';
+        const value = expression ? this.evaluator.evaluateExpression(expression) : 0;
 
-        if (expression) {
-            const value = this.evaluator.evaluateExpression(expression);
-            this.variables[name] = value;
-        } else {
-            this.variables[name] = 0;
-        }
+        this.variables = {
+            ...this.variables,
+            [name]: value
+        };
     }
 
     executeSet(name, valueInput) {
@@ -242,24 +252,29 @@ export class BlockInterpreter {
             return;
         }
 
-        if (!this.variables.hasOwnProperty(name)) {
+        if (!(name in this.variables)) {
             this.error = `Переменная ${name} не объявлена`;
             return;
         }
 
-        const expression = valueInput ? valueInput.value.trim() : '';
+        const expression = valueInput?.value.trim() ?? '';
 
         if (expression) {
             const value = this.evaluator.evaluateExpression(expression);
-            this.variables[name] = value;
+            this.variables = {
+                ...this.variables,
+                [name]: value
+            };
         } else {
             this.error = `Недопустимое значение для переменной ${name}`;
         }
     }
 
     executeArrayDeclaration(block) {
-        const nameInput = block.querySelector('.name');
-        const sizeInput = block.querySelector('.size');
+        const [nameInput, sizeInput] = [
+            block.querySelector('.name'),
+            block.querySelector('.size')
+        ];
 
         if (nameInput && sizeInput) {
             const name = nameInput.value.trim();
@@ -268,19 +283,23 @@ export class BlockInterpreter {
             if (name && sizeFiltered) {
                 const size = this.evaluator.evaluateExpression(sizeFiltered);
                 if (typeof size === 'number' && size > 0 && Number.isInteger(size)) {
-                    this.arrays[name] = new Array(size).fill(0);
+                    this.arrays = {
+                        ...this.arrays,
+                        [name]: new Array(size).fill(0)
+                    };
                 } else {
                     this.error = `Некорректный размер массива: ${sizeFiltered}`;
-                    return;
                 }
             }
         }
     }
 
     executeArraySet(block) {
-        const nameInput = block.querySelector('.name');
-        const indexInput = block.querySelector('.index');
-        const valueInput = block.querySelector('.value');
+        const [nameInput, indexInput, valueInput] = [
+            block.querySelector('.name'),
+            block.querySelector('.index'),
+            block.querySelector('.value')
+        ];
 
         if (nameInput && indexInput && valueInput) {
             const name = nameInput.value.trim();
@@ -288,7 +307,7 @@ export class BlockInterpreter {
             const valueFiltered = valueInput.value.trim();
 
             if (name && indexFiltered && valueFiltered) {
-                if (!this.arrays.hasOwnProperty(name)) {
+                if (!(name in this.arrays)) {
                     this.error = `Массив ${name} не объявлен`;
                     return;
                 }
@@ -301,20 +320,30 @@ export class BlockInterpreter {
                     return;
                 }
 
-                if (index >= this.arrays[name].length) {
-                    this.error = `Индекс ${index} вне границ массива ${name} [0 - ${this.arrays[name].length - 1}]`;
+                const array = this.arrays[name];
+                if (index >= array.length) {
+                    this.error = `Индекс ${index} вне границ массива ${name} [0 - ${array.length - 1}]`;
                     return;
                 }
 
-                this.arrays[name][index] = value;
+                this.arrays = {
+                    ...this.arrays,
+                    [name]: [
+                        ...array.slice(0, index),
+                        value,
+                        ...array.slice(index + 1)
+                    ]
+                };
             }
         }
     }
 
     executeArrayGet(block) {
-        const varNameInput = block.querySelector('.name');
-        const arrNameInput = block.querySelector('.value');
-        const arrIndexInput = block.querySelector('.index');
+        const [varNameInput, arrNameInput, arrIndexInput] = [
+            block.querySelector('.name'),
+            block.querySelector('.value'),
+            block.querySelector('.index')
+        ];
 
         if (varNameInput && arrNameInput && arrIndexInput) {
             const varName = varNameInput.value.trim();
@@ -322,12 +351,12 @@ export class BlockInterpreter {
             const arrIndex = arrIndexInput.value.trim();
 
             if (varName && arrName && arrIndex) {
-                if (!this.variables.hasOwnProperty(varName)) {
+                if (!(varName in this.variables)) {
                     this.error = `Переменная ${varName} не объявлена`;
                     return;
                 }
 
-                if (!this.arrays.hasOwnProperty(arrName)) {
+                if (!(arrName in this.arrays)) {
                     this.error = `Массив ${arrName} не объявлен`;
                     return;
                 }
@@ -339,12 +368,16 @@ export class BlockInterpreter {
                     return;
                 }
 
-                if (index >= this.arrays[arrName].length) {
-                    this.error = `Индекс ${index} вне границ массива ${arrName} [0 - ${this.arrays[arrName].length - 1}]`;
+                const array = this.arrays[arrName];
+                if (index >= array.length) {
+                    this.error = `Индекс ${index} вне границ массива ${arrName} [0 - ${array.length - 1}]`;
                     return;
                 }
 
-                this.variables[varName] = this.arrays[arrName][index];
+                this.variables = {
+                    ...this.variables,
+                    [varName]: array[index]
+                };
             }
         }
     }
@@ -352,23 +385,24 @@ export class BlockInterpreter {
     executeIf(block) {
         try {
             const expressionInput = block.querySelector('.if-expression');
-            const expression = expressionInput ? expressionInput.value.trim() : "";
+            const expression = expressionInput?.value.trim() ?? "";
 
             const result = this.evaluator.evaluateLogicalExpression(expression);
 
             if (!result) {
                 let next = this.blockConnector.getNextBlock(block);
                 while (next) {
-                    if (next.dataset.type === BLOCK_TYPES.ELSE) {
-                        this.skipToElse = true;
-                        this.skipToEndIf = false;
-                        this.skipToEndElse = false;
+                    const { type } = next.dataset;
+                    if (type === BLOCK_TYPES.ELSE) {
+                        ({ skipToElse: this.skipToElse = true, 
+                           skipToEndIf: this.skipToEndIf = false, 
+                           skipToEndElse: this.skipToEndElse = false } = {});
                         break;
                     }
-                    if (next.dataset.type === BLOCK_TYPES.ENDIF) {
-                        this.skipToEndIf = true;
-                        this.skipToElse = false;
-                        this.skipToEndElse = false;
+                    if (type === BLOCK_TYPES.ENDIF) {
+                        ({ skipToEndIf: this.skipToEndIf = true, 
+                           skipToElse: this.skipToElse = false, 
+                           skipToEndElse: this.skipToEndElse = false } = {});
                         break;
                     }
                     next = this.blockConnector.getNextBlock(next);
@@ -382,7 +416,7 @@ export class BlockInterpreter {
     executeWhile(block) {
         try {
             const expressionInput = block.querySelector('.while-expression');
-            const expression = expressionInput ? expressionInput.value.trim() : "";
+            const expression = expressionInput?.value.trim() ?? "";
 
             const endWhile = this.findMatchingEndWhile(block);
             if (!endWhile) {
@@ -402,9 +436,7 @@ export class BlockInterpreter {
             let iterations = 0;
 
             while (!this.error && this.evaluator.evaluateLogicalExpression(expression)) {
-                iterations++;
-
-                if (iterations > this.maxIterations) {
+                if (++iterations > this.maxIterations) {
                     this.error = "Превышено максимальное количество итераций";
                     break;
                 }
@@ -428,9 +460,10 @@ export class BlockInterpreter {
         while (current && safetyCounter < maxBlocks) {
             safetyCounter++;
 
-            if (current.dataset.type === BLOCK_TYPES.WHILE) {
+            const { type } = current.dataset;
+            if (type === BLOCK_TYPES.WHILE) {
                 depth++;
-            } else if (current.dataset.type === BLOCK_TYPES.ENDWHILE) {
+            } else if (type === BLOCK_TYPES.ENDWHILE) {
                 depth--;
                 if (depth === 0) {
                     return current;
@@ -585,51 +618,51 @@ export class BlockInterpreter {
     }
 
     executeArithmetic(block, type) {
-        const inputs = block.querySelectorAll('input');
+        const inputs = [...block.querySelectorAll('input')];
         if (inputs.length < 2) return;
 
-        const leftInput = inputs[0].value.trim();
-        const rightInput = inputs[1].value.trim();
+        const [leftInput, rightInput] = inputs.map(input => input.value.trim());
 
         const left = this.evaluator.resolveValue(leftInput);
         const right = this.evaluator.resolveValue(rightInput);
 
-        let result = 0;
-        switch(type) {
-            case BLOCK_TYPES.PLUS:
-                result = left + right;
-                break;
-            case BLOCK_TYPES.MINUS:
-                result = left - right;
-                break;
-            case BLOCK_TYPES.PROD:
-                result = left * right;
-                break;
-            case BLOCK_TYPES.DIVISION:
+        const operations = {
+            [BLOCK_TYPES.PLUS]: () => left + right,
+            [BLOCK_TYPES.MINUS]: () => left - right,
+            [BLOCK_TYPES.PROD]: () => left * right,
+            [BLOCK_TYPES.DIVISION]: () => {
                 if (right === 0) {
                     this.error = "Деление на ноль";
-                    return;
+                    return null;
                 }
-                result = left / right;
-                break;
-            case BLOCK_TYPES.REMAINS:
+                return left / right;
+            },
+            [BLOCK_TYPES.REMAINS]: () => {
                 if (right === 0) {
                     this.error = "Деление на ноль";
-                    return;
+                    return null;
                 }
-                result = left % right;
-                break;
-        }
+                return left % right;
+            }
+        };
 
-        this.lastValue = result;
-
-        if (leftInput && this.variables.hasOwnProperty(leftInput)) {
-            this.variables[leftInput] = result;
+        const operation = operations[type];
+        if (operation) {
+            const result = operation();
+            if (result !== null) {
+                this.lastValue = result;
+                if (leftInput in this.variables) {
+                    this.variables = {
+                        ...this.variables,
+                        [leftInput]: result
+                    };
+                }
+            }
         }
     }
 
     scanFunctions() {
-        const blocks = document.querySelectorAll('#WorkspaceArea .block');
+        const blocks = [...document.querySelectorAll('#WorkspaceArea .block')];
 
         blocks.forEach(block => {
             if (block.dataset.type === BLOCK_TYPES.FUNCTION) {
@@ -645,9 +678,9 @@ export class BlockInterpreter {
                     return;
                 }
 
-                this.functions[name] = {
-                    start: block,
-                    end: end
+                this.functions = {
+                    ...this.functions,
+                    [name]: { start: block, end }
                 };
             }
         });
@@ -662,9 +695,10 @@ export class BlockInterpreter {
         while (current && safetyCounter < maxBlocks) {
             safetyCounter++;
 
-            if (current.dataset.type === BLOCK_TYPES.FUNCTION) {
+            const { type } = current.dataset;
+            if (type === BLOCK_TYPES.FUNCTION) {
                 depth++;
-            } else if (current.dataset.type === BLOCK_TYPES.ENDFUNCTION) {
+            } else if (type === BLOCK_TYPES.ENDFUNCTION) {
                 depth--;
                 if (depth === 0) {
                     return current;
@@ -682,37 +716,41 @@ export class BlockInterpreter {
 
         const name = input.value.trim();
 
-        if (!this.functions[name]) {
+        if (!(name in this.functions)) {
             this.error = `Функция ${name} не объявлена`;
             return;
         }
 
-        const func = this.functions[name];
-        const firstChild = func.start.dataset.child
-            ? document.getElementById(func.start.dataset.child)
+        const { start, end } = this.functions[name];
+        const firstChild = start.dataset.child
+            ? document.getElementById(start.dataset.child)
             : null;
 
         if (!firstChild) return;
 
-        this.returnStack.push({
-            nextAfterCall: this.blockConnector.getNextBlock(block)
-        });
+        this.returnStack = [
+            ...this.returnStack,
+            { nextAfterCall: this.blockConnector.getNextBlock(block) }
+        ];
 
-        this.executeBlockRange(firstChild, func.end);
+        this.executeBlockRange(firstChild, end);
 
-        const returnState = this.returnStack.pop();
-        if (returnState && returnState.nextAfterCall && !this.error) {
-            this.nextAfterLoop = returnState.nextAfterCall;
+        const [lastReturn, ...restReturns] = this.returnStack;
+        this.returnStack = restReturns;
+        
+        if (lastReturn?.nextAfterCall && !this.error) {
+            this.nextAfterLoop = lastReturn.nextAfterCall;
         }
     }
 
     showOutput() {
+        const outputElement = document.getElementById('output');
         if (this.error) {
-            document.getElementById('output').innerHTML = this.outputFormatter.formatError(
-                this.error, this.variables, this.arrays
+            outputElement.innerHTML = this.outputFormatter.formatError(
+                this.error, { ...this.variables }, { ...this.arrays }
             );
         } else {
-            document.getElementById('output').innerHTML = this.outputFormatter.formatSuccess(this.output);
+            outputElement.innerHTML = this.outputFormatter.formatSuccess([...this.output]);
         }
     }
 }

@@ -126,9 +126,10 @@ export class BlockInterpreter {
             { flag: 'skipToEndIf', target: BLOCK_TYPES.ENDIF, onMatch: () => {
                 this.skipToEndIf = false;
                 return true;
+            },
             }
-            return true;
-        }
+        
+        ];
         
         if (this.skipToEndElse) {
             if (type === BLOCK_TYPES.ENDELSE) {
@@ -525,12 +526,12 @@ export class BlockInterpreter {
             }
 
             if (init) {
-                this.ExecuteInitialization(init);
+                this.executeInitialization(init);
             }
 
             let iterations = 0;
 
-            while (!this.Error && this.evaluateLogicalExpression(condition)) {
+            while (!this.error && this.evaluator.evaluateLogicalExpression(condition)) {
                 iterations++;
 
                 if (iterations > this.maxIterations) {
@@ -545,10 +546,22 @@ export class BlockInterpreter {
                 }
             }
 
-            this.nextAfterLoop = this.getNextBlock(endFor);
+            this.nextAfterLoop = this.blockConnector.getNextBlock(endFor);
 
         } catch (error) {
             this.error = `Ошибка в цикле for: ${error.message}`;
+        }
+    }
+
+    executeInitialization(init) {
+        const assignMatch = init.match(/^([a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*(.+)$/);
+        if (assignMatch) {
+            const varName = assignMatch[1];
+            const valueExpr = assignMatch[2];
+            const value = this.evaluator.evaluateExpression(valueExpr);
+            this.variables[varName] = value;
+        } else {
+            this.evaluator.evaluateExpression(init);
         }
     }
 
@@ -574,7 +587,7 @@ export class BlockInterpreter {
             const valueExpr = compoundMatch[3];
             if (this.variables.hasOwnProperty(varName)) {
                 const currentValue = this.variables[varName];
-                const value = this.evaluateExpression(valueExpr);
+                const value = this.evaluator.evaluateExpression(valueExpr);
                 switch(op) {
                     case '+': this.variables[varName] = currentValue + value; break;
                     case '-': this.variables[varName] = currentValue - value; break;
@@ -589,13 +602,13 @@ export class BlockInterpreter {
         if (assignMatch) {
             const varName = assignMatch[1];
             const valueExpr = assignMatch[2];
-            const value = this.evaluateExpression(valueExpr);
+            const value = this.evaluator.evaluateExpression(valueExpr);
             this.variables[varName] = value;
         }
     }
 
     findMatchingEndFor(startBlock) {
-        let current = this.GetNext(startBlock);
+        let current = this.blockConnector.getNextBlock(startBlock);
         let depth = 1;
         let safetyCounter = 0;
         const maxBlocks = 10000;
@@ -611,7 +624,7 @@ export class BlockInterpreter {
                     return current;
                 }
             }
-            current = this.getNextBlock(current);
+            current = this.blockConnector.getNextBlock(current);
         }
         
         return null;
